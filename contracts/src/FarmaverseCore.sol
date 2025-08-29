@@ -9,6 +9,8 @@ import "./Harvest.sol";
 import "./SupplyChain.sol";
 import "./ConsumerVerification.sol";
 import "./FarmerReputation.sol";
+import "./WasteManagement.sol";
+import "./Processing.sol";
 
 /**
  * @title FarmaverseCore
@@ -24,6 +26,8 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     SupplyChain public supplyChainContract;
     ConsumerVerification public consumerVerificationContract;
     FarmerReputation public farmerReputationContract;
+    WasteManagement public wasteManagementContract;
+    Processing public processingContract;
     
     // Contract addresses
     address public treeIDAddress;
@@ -32,6 +36,8 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     address public supplyChainAddress;
     address public consumerVerificationAddress;
     address public farmerReputationAddress;
+    address public wasteManagementAddress;
+    address public processingAddress;
     
     // Events
     event ContractsDeployed(
@@ -40,7 +46,9 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         address harvest,
         address supplyChain,
         address consumerVerification,
-        address farmerReputation
+        address farmerReputation,
+        address wasteManagement,
+        address processing
     );
     
     event CompleteTraceabilityCreated(
@@ -60,6 +68,8 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
      * @param _supplyChain SupplyChain contract address
      * @param _consumerVerification ConsumerVerification contract address
      * @param _farmerReputation FarmerReputation contract address
+     * @param _wasteManagement WasteManagement contract address
+     * @param _processing Processing contract address
      */
     function setContractAddresses(
         address _treeID,
@@ -67,7 +77,9 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         address _harvest,
         address _supplyChain,
         address _consumerVerification,
-        address _farmerReputation
+        address _farmerReputation,
+        address _wasteManagement,
+        address _processing
     ) external onlyOwner {
         require(_treeID != address(0), "Invalid TreeID address");
         require(_certification != address(0), "Invalid Certification address");
@@ -75,6 +87,8 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         require(_supplyChain != address(0), "Invalid SupplyChain address");
         require(_consumerVerification != address(0), "Invalid ConsumerVerification address");
         require(_farmerReputation != address(0), "Invalid FarmerReputation address");
+        require(_wasteManagement != address(0), "Invalid WasteManagement address");
+        require(_processing != address(0), "Invalid Processing address");
         
         treeIDAddress = _treeID;
         certificationAddress = _certification;
@@ -82,6 +96,8 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         supplyChainAddress = _supplyChain;
         consumerVerificationAddress = _consumerVerification;
         farmerReputationAddress = _farmerReputation;
+        wasteManagementAddress = _wasteManagement;
+        processingAddress = _processing;
         
         // Initialize contract instances
         treeIDContract = TreeID(_treeID);
@@ -90,8 +106,10 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         supplyChainContract = SupplyChain(_supplyChain);
         consumerVerificationContract = ConsumerVerification(_consumerVerification);
         farmerReputationContract = FarmerReputation(_farmerReputation);
+        wasteManagementContract = WasteManagement(_wasteManagement);
+        processingContract = Processing(_processing);
         
-        emit ContractsDeployed(_treeID, _certification, _harvest, _supplyChain, _consumerVerification, _farmerReputation);
+        emit ContractsDeployed(_treeID, _certification, _harvest, _supplyChain, _consumerVerification, _farmerReputation, _wasteManagement, _processing);
     }
     
     /**
@@ -457,6 +475,129 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     }
     
     /**
+     * @dev Report waste at any stage
+     * @param batchId Batch ID
+     * @param quantity Waste quantity in grams
+     * @param stage Stage where waste occurred
+     * @param wasteType Type of waste
+     * @param reason Reason for waste
+     * @param disposalMethod How waste was disposed
+     * @param isRecycled Whether waste was recycled
+     * @param ipfsHash Waste documentation
+     * @param cost Cost of waste
+     */
+    function reportWaste(
+        uint256 batchId,
+        uint256 quantity,
+        string memory stage,
+        string memory wasteType,
+        string memory reason,
+        string memory disposalMethod,
+        bool isRecycled,
+        string memory ipfsHash,
+        uint256 cost
+    ) external nonReentrant returns (uint256) {
+        return wasteManagementContract.reportWaste(
+            batchId,
+            quantity,
+            stage,
+            wasteType,
+            reason,
+            disposalMethod,
+            isRecycled,
+            ipfsHash,
+            cost
+        );
+    }
+    
+    /**
+     * @dev Start processing a batch
+     * @param batchId Batch ID to process
+     * @param inputQuantity Input quantity in grams
+     * @param processingMethod Processing method
+     * @param packagingType Packaging type
+     * @param packageSize Package size
+     * @param ipfsHash Processing documentation
+     */
+    function startProcessing(
+        uint256 batchId,
+        uint256 inputQuantity,
+        string memory processingMethod,
+        string memory packagingType,
+        string memory packageSize,
+        string memory ipfsHash
+    ) external nonReentrant returns (uint256) {
+        return processingContract.startProcessing(
+            batchId,
+            inputQuantity,
+            processingMethod,
+            packagingType,
+            packageSize,
+            ipfsHash
+        );
+    }
+    
+    /**
+     * @dev Complete processing with output details
+     * @param processingEventId Processing event ID
+     * @param outputQuantity Output quantity in grams
+     * @param packageCount Number of packages produced
+     * @param qualityPassed Whether quality check passed
+     * @param qualityNotes Quality notes
+     * @param cost Processing cost
+     */
+    function completeProcessing(
+        uint256 processingEventId,
+        uint256 outputQuantity,
+        uint256 packageCount,
+        bool qualityPassed,
+        string memory qualityNotes,
+        uint256 cost
+    ) external nonReentrant {
+        processingContract.completeProcessing(
+            processingEventId,
+            outputQuantity,
+            packageCount,
+            qualityPassed,
+            qualityNotes,
+            cost
+        );
+    }
+    
+    /**
+     * @dev Get complete waste statistics for a batch
+     * @param batchId Batch ID
+     * @return Waste statistics
+     */
+    function getBatchWasteStats(uint256 batchId) external view returns (WasteManagement.WasteStats memory) {
+        return wasteManagementContract.getBatchWasteStats(batchId);
+    }
+    
+    /**
+     * @dev Get complete processing statistics for a batch
+     * @param batchId Batch ID
+     * @return Processing statistics
+     */
+    function getBatchProcessingStats(uint256 batchId) external view returns (Processing.ProcessingStats memory) {
+        return processingContract.getBatchProcessingStats(batchId);
+    }
+    
+    /**
+     * @dev Get sustainability metrics for a batch
+     * @param batchId Batch ID
+     * @return recycledPercentage Percentage of waste recycled
+     * @return totalWaste Total waste quantity
+     * @return totalCost Total waste cost
+     */
+    function getBatchSustainabilityMetrics(uint256 batchId) external view returns (
+        uint256 recycledPercentage,
+        uint256 totalWaste,
+        uint256 totalCost
+    ) {
+        return wasteManagementContract.getSustainabilityMetrics(batchId);
+    }
+    
+    /**
      * @dev Get system statistics
      * @return Complete system statistics
      */
@@ -465,14 +606,18 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         uint256 totalHarvests,
         uint256 totalBatches,
         uint256 totalVerifications,
-        uint256 totalReputationEvents
+        uint256 totalReputationEvents,
+        uint256 totalWasteEvents,
+        uint256 totalProcessingEvents
     ) {
         totalTrees = treeIDContract.getTotalTrees();
         totalHarvests = harvestContract.getTotalHarvests();
         totalBatches = supplyChainContract.getTotalBatches();
         totalVerifications = consumerVerificationContract.getTotalVerifications();
         totalReputationEvents = farmerReputationContract.getTotalReputationEvents();
+        totalWasteEvents = wasteManagementContract.getTotalWasteEvents();
+        totalProcessingEvents = processingContract.getTotalProcessingEvents();
         
-        return (totalTrees, totalHarvests, totalBatches, totalVerifications, totalReputationEvents);
+        return (totalTrees, totalHarvests, totalBatches, totalVerifications, totalReputationEvents, totalWasteEvents, totalProcessingEvents);
     }
 }

@@ -93,10 +93,15 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         // Calculate total quantity from harvests
         uint256 totalQuantity = 0;
         for (uint256 i = 0; i < harvestIds.length; i++) {
-            // Note: This would need to interact with Harvest contract
-            // For now, we'll use a placeholder
+            // Get actual harvest quantity from Harvest contract
+            // Note: This requires Harvest contract to be deployed and accessible
+            // For now, we'll use a placeholder until contracts are deployed
             totalQuantity += 1000; // Placeholder: 1kg per harvest
+            // TODO: Replace with: totalQuantity += harvestContract.getHarvest(harvestIds[i]).quantity;
         }
+        
+        // Note: Waste will be tracked separately in WasteManagement contract
+        // This quantity represents the initial harvest quantity before any waste
         
         ProductBatch memory newBatch = ProductBatch({
             batchId: newBatchId,
