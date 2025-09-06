@@ -1,0 +1,60 @@
+---
+description: "Farmverse blockchain agricultural traceability project rules"
+globs: ["*.sol", "*.ts", "*.tsx", "*.js", "*.jsx"]
+alwaysApply: false
+---
+# Farmverse - Cursor IDE Rules
+
+## 1. Project Structure & Tech Stack
+- Monorepo: `contracts/` (Solidity), `backend/` (Node.js + TypeScript), `frontend/` (React + TypeScript)
+- Use Hardhat for smart contracts, Prisma for database, PostgreSQL + Redis
+- Follow separation: blockchain → application → presentation layers
+- Store large files (certificates, images) on IPFS, only hashes on-chain
+
+## 2. Code Style & Naming
+- **Contracts**: PascalCase (`TreeIDContract`, `CertificationRegistry`)
+- **Functions/Variables**: camelCase (`generateTreeId`, `farmerId`, `harvestDate`)
+- **Constants**: SCREAMING_SNAKE_CASE (`POLYGON_RPC_URL`, `MAX_TREE_PER_FARMER`)
+- **Files**: kebab-case (`farmer-dashboard.tsx`, `tree-verification.ts`)
+- Prefix blockchain functions: `blockchainCreateTree`, `blockchainVerifyCert`
+
+## 3. Smart Contract Security
+- Use Solidity 0.8.0+, OpenZeppelin contracts (AccessControl, ReentrancyGuard, Pausable)
+- Follow Checks-Effects-Interactions pattern, emit events for all state changes
+- Implement timelocks + multisig for critical operations
+- Run Slither/Mythril before deployment, use custom errors over revert strings
+- Include circuit breakers for emergency stops, comprehensive NatSpec comments
+
+## 4. API & Database Best Practices
+- RESTful endpoints: `/api/v1/farmers`, `/api/v1/trees/{treeId}/trace`
+- Always validate input, sanitize data, implement rate limiting (especially QR endpoints)
+- Use Prisma migrations, proper indexing for traceability queries
+- Cache frequently accessed data in Redis (tree verification, farmer profiles)
+
+## 5. Security & Privacy Rules  
+- Never commit secrets, use environment variables exclusively
+- Hash sensitive farmer data before database storage
+- HTTPS only, secure CORS policies, input validation on all endpoints
+- Generate cryptographically secure TreeIDs and QR codes
+- Log transactions with hashes but never private keys or personal data
+
+## 6. Testing & Quality Requirements
+- **Unit tests**: Jest for APIs, Hardhat + Chai for contracts
+- **Integration tests**: Full traceability flow (farm input → QR scan → verification)
+- **Security testing**: Run fuzzing tests on critical contract functions
+- Test with realistic agricultural data (mango varieties, harvest seasons)
+- Maintain 80%+ code coverage, test on local Hardhat network first
+
+## 7. Error Handling & Monitoring
+- Use structured logging with correlation IDs for request tracing
+- Custom error classes for different layers (blockchain, database, validation)
+- Implement proper React error boundaries for frontend
+- Monitor deployed contracts with OpenZeppelin Defender
+- Alert on unusual patterns (mass QR scanning, failed verifications)
+
+## 8. Documentation Standards
+- **Smart contracts**: Complete NatSpec for all public functions
+- **APIs**: OpenAPI/Swagger documentation with examples
+- **Code**: JSDoc for complex agricultural business logic
+- Document QR format specifications for integration partners
+- Keep deployment and local setup instructions current
