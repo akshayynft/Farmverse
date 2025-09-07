@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title FarmerReputation
@@ -11,10 +10,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
  * Integrates with TreeID, Certification, Harvest, and ConsumerVerification contracts
  */
 contract FarmerReputation is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
     // Counter for reputation events
-    Counters.Counter private _reputationEventIdCounter;
+    uint256 private _reputationEventIdCounter;
     
     // Structure for farmer reputation profile
     struct FarmerProfile {
@@ -161,8 +158,8 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
         require(bytes(eventType).length > 0, "Event type cannot be empty");
         require(score <= 100, "Score cannot exceed 100");
         
-        _reputationEventIdCounter.increment();
-        uint256 newEventId = _reputationEventIdCounter.current();
+        _reputationEventIdCounter++;
+        uint256 newEventId = _reputationEventIdCounter;
         
         ReputationEvent memory event_ = ReputationEvent({
             eventId: newEventId,
@@ -222,7 +219,7 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
         // Check for tier upgrade
         checkTierUpgrade(farmer, newScore);
         
-        emit ReputationUpdated(farmer, newScore, _reputationEventIdCounter.current());
+        emit ReputationUpdated(farmer, newScore, _reputationEventIdCounter);
     }
     
     /**
@@ -412,7 +409,7 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
      * @return Total count of events
      */
     function getTotalReputationEvents() external view returns (uint256) {
-        return _reputationEventIdCounter.current();
+        return _reputationEventIdCounter;
     }
     
     /**

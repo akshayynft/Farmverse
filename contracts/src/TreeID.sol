@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title TreeID
@@ -10,10 +9,8 @@ import "@openzeppelin/contracts/utils/Counters.sol";
  * Each tree or group of trees gets a unique TreeID for traceability
  */
 contract TreeID is Ownable {
-    using Counters for Counters.Counter;
-    
     // Counter for generating unique TreeIDs
-    Counters.Counter private _treeIdCounter;
+    uint256 private _treeIdCounter;
     
     // Structure to store tree information
     struct Tree {
@@ -57,8 +54,8 @@ contract TreeID is Ownable {
         require(bytes(cropType).length > 0, "Crop type cannot be empty");
         require(plantingDate <= block.timestamp, "Planting date cannot be in future");
         
-        _treeIdCounter.increment();
-        uint256 newTreeId = _treeIdCounter.current();
+        _treeIdCounter++;
+        uint256 newTreeId = _treeIdCounter;
         
         Tree memory newTree = Tree({
             treeId: newTreeId,
@@ -142,7 +139,7 @@ contract TreeID is Ownable {
      * @return Total count of trees
      */
     function getTotalTrees() external view returns (uint256) {
-        return _treeIdCounter.current();
+        return _treeIdCounter;
     }
     
     /**

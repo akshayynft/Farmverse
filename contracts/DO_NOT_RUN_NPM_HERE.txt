@@ -1,0 +1,24 @@
+⚠️  WARNING: DO NOT RUN NPM COMMANDS IN THIS DIRECTORY!
+
+This is a MONOREPO structure. All npm operations must be run from the ROOT directory.
+
+✅ CORRECT USAGE:
+   cd /path/to/FarmTrack
+   npm install
+   npm run compile:contracts
+   npm run test:contracts
+
+❌ WRONG USAGE:
+   cd contracts/
+   npm install     # This will cause issues!
+   npm test        # This will fail!
+
+This directory contains only:
+- Smart contracts (src/)
+- Tests (test/)
+- Deployment scripts (scripts/)
+
+All configuration files (package.json, tsconfig.json, hardhat.config.ts) 
+are in the ROOT directory for shared dependency management.
+
+For questions, see the main README.md in the root directory.

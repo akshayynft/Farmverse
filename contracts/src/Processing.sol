@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title Processing
@@ -11,10 +10,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
  * Manages processing facilities, methods, and product transformation
  */
 contract Processing is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
     // Counter for processing event IDs
-    Counters.Counter private _processingEventIdCounter;
+    uint256 private _processingEventIdCounter;
     
     // Structure for processing facility
     struct ProcessingFacility {
@@ -145,8 +142,8 @@ contract Processing is Ownable, ReentrancyGuard {
         require(bytes(packagingType).length > 0, "Packaging type cannot be empty");
         require(bytes(packageSize).length > 0, "Package size cannot be empty");
         
-        _processingEventIdCounter.increment();
-        uint256 newProcessingEventId = _processingEventIdCounter.current();
+        _processingEventIdCounter++;
+        uint256 newProcessingEventId = _processingEventIdCounter;
         
         ProcessingEvent memory processingEvent = ProcessingEvent({
             processingEventId: newProcessingEventId,
@@ -361,7 +358,7 @@ contract Processing is Ownable, ReentrancyGuard {
      * @return Total count of processing events
      */
     function getTotalProcessingEvents() external view returns (uint256) {
-        return _processingEventIdCounter.current();
+        return _processingEventIdCounter;
     }
     
     /**

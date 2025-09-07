@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./TreeID.sol";
 import "./Certification.sol";
 import "./Harvest.sol";
@@ -374,7 +374,11 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     /**
      * @dev Get complete traceability data for a batch
      * @param batchId Batch ID
-     * @return Complete traceability information
+     * @return batch Complete batch information
+     * @return transfers Array of ownership transfers
+     * @return harvestIds Array of harvest IDs
+     * @return treeIds Array of tree IDs
+     * @return trees Array of tree data
      */
     function getCompleteTraceability(uint256 batchId) external view returns (
         SupplyChain.ProductBatch memory batch,
@@ -405,7 +409,11 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     /**
      * @dev Get farmer complete profile
      * @param farmer Farmer address
-     * @return Complete farmer information
+     * @return reputation Farmer reputation profile
+     * @return quality Farmer quality metrics
+     * @return tier Farmer reputation tier
+     * @return treeIds Array of tree IDs owned by farmer
+     * @return harvestIds Array of harvest IDs by farmer
      */
     function getFarmerCompleteProfile(address farmer) external view returns (
         FarmerReputation.FarmerProfile memory reputation,
@@ -599,7 +607,13 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     
     /**
      * @dev Get system statistics
-     * @return Complete system statistics
+     * @return totalTrees Total number of trees
+     * @return totalHarvests Total number of harvests
+     * @return totalBatches Total number of batches
+     * @return totalVerifications Total number of verifications
+     * @return totalReputationEvents Total number of reputation events
+     * @return totalWasteEvents Total number of waste events
+     * @return totalProcessingEvents Total number of processing events
      */
     function getSystemStats() external view returns (
         uint256 totalTrees,

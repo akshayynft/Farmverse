@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title ConsumerVerification
@@ -11,10 +10,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
  * Allows consumers to verify products, provide ratings, and earn rewards
  */
 contract ConsumerVerification is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
     // Counter for verification IDs
-    Counters.Counter private _verificationIdCounter;
+    uint256 private _verificationIdCounter;
     
     // Structure for consumer verification
     struct Verification {
@@ -120,8 +117,8 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
         require(rating >= 1 && rating <= 5, "Rating must be 1-5");
         require(bytes(verificationNotes).length > 0, "Verification notes cannot be empty");
         
-        _verificationIdCounter.increment();
-        uint256 newVerificationId = _verificationIdCounter.current();
+        _verificationIdCounter++;
+        uint256 newVerificationId = _verificationIdCounter;
         
         Verification memory verification = Verification({
             verificationId: newVerificationId,
@@ -293,7 +290,7 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
      * @return Total count of verifications
      */
     function getTotalVerifications() external view returns (uint256) {
-        return _verificationIdCounter.current();
+        return _verificationIdCounter;
     }
     
     /**

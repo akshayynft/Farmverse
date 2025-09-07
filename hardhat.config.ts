@@ -1,7 +1,24 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import path from "path";
 
 const config: HardhatUserConfig = {
+  networks: {
+    mumbai: {
+      url: process.env.MUMBAI_URL || "https://rpc-mumbai.maticvigil.com",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
+    polygon: {
+      url: process.env.POLYGON_URL || "https://polygon-rpc.com",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
+  },
+  paths: {
+    sources: "./contracts/src",
+    tests: "./contracts/test",
+    cache: "./contracts/cache",
+    artifacts: "./contracts/artifacts",
+  },
   solidity: {
     version: "0.8.24",
     settings: {
@@ -9,29 +26,12 @@ const config: HardhatUserConfig = {
         enabled: true,
         runs: 200,
       },
+      viaIR: true,
     },
-  },
-  networks: {
-    // Polygon Mumbai testnet
-    mumbai: {
-      url: process.env.MUMBAI_URL || "https://rpc-mumbai.maticvigil.com",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
-    // Polygon mainnet
-    polygon: {
-      url: process.env.POLYGON_URL || "https://polygon-rpc.com",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
-  },
-  paths: {
-    sources: "./src",
-    tests: "./test",
-    cache: "./cache",
-    artifacts: "./artifacts",
   },
   mocha: {
     timeout: 40000,
   },
 };
 
-export default config; 
+export default config;

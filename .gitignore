@@ -1,3 +1,26 @@
+# ===========================================
+# FARMAVERSE MONOREPO - SAFETY RULES
+# ===========================================
+# 
+# ⚠️  IMPORTANT: All npm commands must be run from ROOT directory only!
+# ✅ Correct: cd /path/to/FarmTrack && npm install
+# ❌ Wrong:   cd contracts/ && npm install
+#
+# This monorepo has a single package.json at root level.
+# Subdirectories (contracts/, backend/, frontend/) are workspaces.
+# ===========================================
+
+# Prevent accidental npm operations in subdirectories
+contracts/package.json
+contracts/package-lock.json
+contracts/node_modules/
+backend/package.json
+backend/package-lock.json
+backend/node_modules/
+frontend/package.json
+frontend/package-lock.json
+frontend/node_modules/
+
 # Dependencies
 node_modules/
 npm-debug.log*

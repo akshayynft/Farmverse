@@ -147,13 +147,28 @@ npm run dev
 
 ```
 FarmTrack/
-├── contracts/          # Smart contracts (Solidity)
-├── backend/           # Node.js API server
-├── frontend/          # React.js web application
+├── package.json        # Root workspace configuration with all dependencies
+├── tsconfig.json      # Root TypeScript configuration
+├── hardhat.config.ts  # Hardhat configuration for smart contracts
+├── contracts/         # Smart contracts directory
+│   ├── src/          # Solidity smart contracts
+│   ├── test/         # Smart contract tests
+│   └── scripts/      # Deployment scripts
+├── backend/           # Node.js API server (TODO: Phase 2)
+├── frontend/          # React.js web application (TODO: Phase 2)
 ├── docs/              # Documentation
-├── scripts/           # Deployment and utility scripts
-└── tests/             # Test suites
+└── node_modules/      # Shared dependencies (root level)
 ```
+
+### 🚀 Future Frontend Integration
+<!-- 
+TODO: Frontend directory will be added in Phase 2 with:
+- React.js application for farmer dashboard
+- Consumer QR code scanning interface
+- Progressive Web App (PWA) features
+- Responsive design for mobile and desktop
+- Integration with smart contracts via Web3
+-->
 
 ## 🎯 Key Features (Year 1)
 

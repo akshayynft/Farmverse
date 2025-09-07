@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title Harvest
@@ -10,10 +9,8 @@ import "@openzeppelin/contracts/utils/Counters.sol";
  * Links harvests to TreeIDs for complete traceability
  */
 contract Harvest is Ownable {
-    using Counters for Counters.Counter;
-    
     // Counter for harvest IDs
-    Counters.Counter private _harvestIdCounter;
+    uint256 private _harvestIdCounter;
     
     // Structure for harvest data
     struct HarvestData {
@@ -94,8 +91,8 @@ contract Harvest is Ownable {
         require(ripenessLevel >= 1 && ripenessLevel <= 10, "Ripeness level must be 1-10");
         require(bytes(harvestMethod).length > 0, "Harvest method cannot be empty");
         
-        _harvestIdCounter.increment();
-        uint256 newHarvestId = _harvestIdCounter.current();
+        _harvestIdCounter++;
+        uint256 newHarvestId = _harvestIdCounter;
         
         HarvestData memory newHarvest = HarvestData({
             harvestId: newHarvestId,
@@ -320,5 +317,13 @@ contract Harvest is Ownable {
         }
         
         totalHarvests = harvestIds.length;
+    }
+    
+    /**
+     * @dev Get total number of harvests
+     * @return Total count of harvests
+     */
+    function getTotalHarvests() external view returns (uint256) {
+        return _harvestIdCounter;
     }
 } 

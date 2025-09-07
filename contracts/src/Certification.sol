@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title Certification
@@ -10,10 +9,8 @@ import "@openzeppelin/contracts/utils/Counters.sol";
  * Links certifications to TreeIDs for complete traceability
  */
 contract Certification is Ownable {
-    using Counters for Counters.Counter;
-    
     // Counter for certification IDs
-    Counters.Counter private _certificationIdCounter;
+    uint256 private _certificationIdCounter;
     
     // Structure for certification data
     struct CertificationData {
@@ -79,8 +76,8 @@ contract Certification is Ownable {
         require(expiryDate > block.timestamp, "Expiry date must be in the future");
         require(bytes(certifyingAuthority).length > 0, "Certifying authority cannot be empty");
         
-        _certificationIdCounter.increment();
-        uint256 newCertificationId = _certificationIdCounter.current();
+        _certificationIdCounter++;
+        uint256 newCertificationId = _certificationIdCounter;
         
         CertificationData memory newCertification = CertificationData({
             certificationId: newCertificationId,

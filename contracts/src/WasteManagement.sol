@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title WasteManagement
@@ -11,10 +10,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
  * Provides detailed waste categorization, reporting, and sustainability metrics
  */
 contract WasteManagement is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
     // Counter for waste event IDs
-    Counters.Counter private _wasteEventIdCounter;
+    uint256 private _wasteEventIdCounter;
     
     // Structure for waste event
     struct WasteEvent {
@@ -98,8 +95,8 @@ contract WasteManagement is Ownable, ReentrancyGuard {
         require(bytes(reason).length > 0, "Reason cannot be empty");
         require(bytes(disposalMethod).length > 0, "Disposal method cannot be empty");
         
-        _wasteEventIdCounter.increment();
-        uint256 newWasteEventId = _wasteEventIdCounter.current();
+        _wasteEventIdCounter++;
+        uint256 newWasteEventId = _wasteEventIdCounter;
         
         WasteEvent memory wasteEvent = WasteEvent({
             wasteEventId: newWasteEventId,
@@ -265,7 +262,7 @@ contract WasteManagement is Ownable, ReentrancyGuard {
      * @return Total count of waste events
      */
     function getTotalWasteEvents() external view returns (uint256) {
-        return _wasteEventIdCounter.current();
+        return _wasteEventIdCounter;
     }
     
     /**

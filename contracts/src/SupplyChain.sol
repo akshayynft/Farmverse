@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title SupplyChain
@@ -12,10 +11,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
  * Generates QR codes and manages ownership transfers
  */
 contract SupplyChain is Ownable, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
     // Counter for product batch IDs
-    Counters.Counter private _batchIdCounter;
+    uint256 private _batchIdCounter;
     
     // Structure for product batch
     struct ProductBatch {
@@ -87,8 +84,8 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         require(bytes(batchCode).length > 0, "Batch code cannot be empty");
         require(bytes(qrCodeHash).length > 0, "QR code hash cannot be empty");
         
-        _batchIdCounter.increment();
-        uint256 newBatchId = _batchIdCounter.current();
+        _batchIdCounter++;
+        uint256 newBatchId = _batchIdCounter;
         
         // Calculate total quantity from harvests
         uint256 totalQuantity = 0;
@@ -327,6 +324,6 @@ contract SupplyChain is Ownable, ReentrancyGuard {
      * @return Total count of batches
      */
     function getTotalBatches() external view returns (uint256) {
-        return _batchIdCounter.current();
+        return _batchIdCounter;
     }
 }
