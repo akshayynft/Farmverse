@@ -35,6 +35,7 @@ describe("TreeID", function () {
 
   describe("Tree Registration", function () {
     const treeData = {
+      treeId: 0, // Will be set by the contract
       farmerAddress: "",
       location: "Maharashtra, India",
       variety: "Alphonso",
@@ -43,7 +44,10 @@ describe("TreeID", function () {
       organicCertified: true,
       irrigationType: "Drip",
       soilType: "Red Soil",
-      coordinates: "19.0760,72.8777"
+      coordinates: "19.0760,72.8777",
+      isActive: true, // Will be set by the contract
+      reputation: 0, // Will be set by the contract
+      ipfsHash: "" // Added missing field
     };
 
     beforeEach(async function () {
@@ -80,6 +84,19 @@ describe("TreeID", function () {
       expect(tree.variety).to.equal(treeData.variety);
       expect(tree.organicCertified).to.equal(treeData.organicCertified);
     });
+
+    it("Should generate unique treeIds across farmers", async function () {
+      await treeID.connect(farmer1).registerTree(treeData);
+      
+      const treeData2 = { ...treeData, farmerAddress: farmer2.address };
+      await treeID.connect(farmer2).registerTree(treeData2);
+      
+      const tree1 = await treeID.getTree(farmer1.address, 0);
+      const tree2 = await treeID.getTree(farmer2.address, 0);
+      
+      expect(tree1.treeId).to.equal(1);
+      expect(tree2.treeId).to.equal(2);
+    });
   });
 
   describe("Tree Management", function () {
@@ -87,6 +104,7 @@ describe("TreeID", function () {
 
     beforeEach(async function () {
       const treeData = {
+        treeId: 0,
         farmerAddress: farmer1.address,
         location: "Maharashtra, India",
         variety: "Alphonso",
@@ -95,7 +113,10 @@ describe("TreeID", function () {
         organicCertified: true,
         irrigationType: "Drip",
         soilType: "Red Soil",
-        coordinates: "19.0760,72.8777"
+        coordinates: "19.0760,72.8777",
+        isActive: true,
+        reputation: 0,
+        ipfsHash: ""
       };
       
       await treeID.connect(farmer1).registerTree(treeData);
@@ -136,6 +157,7 @@ describe("TreeID", function () {
   describe("Access Control", function () {
     it("Should not allow non-farmers to update tree data", async function () {
       const treeData = {
+        treeId: 0,
         farmerAddress: farmer1.address,
         location: "Maharashtra, India",
         variety: "Alphonso",
@@ -144,14 +166,17 @@ describe("TreeID", function () {
         organicCertified: true,
         irrigationType: "Drip",
         soilType: "Red Soil",
-        coordinates: "19.0760,72.8777"
+        coordinates: "19.0760,72.8777",
+        isActive: true,
+        reputation: 0,
+        ipfsHash: ""
       };
       
       await treeID.connect(farmer1).registerTree(treeData);
       
       await expect(
         treeID.connect(addr1).updateTreeLocation(0, "New Location")
-      ).to.be.revertedWith("Only tree owner can update");
+      ).to.be.revertedWith("Tree does not exist");
     });
 
     it("Should not allow updating non-existent tree", async function () {
@@ -162,8 +187,11 @@ describe("TreeID", function () {
   });
 
   describe("Tree Queries", function () {
+    let globalTreeId: number;
+
     beforeEach(async function () {
       const treeData = {
+        treeId: 0,
         farmerAddress: farmer1.address,
         location: "Maharashtra, India",
         variety: "Alphonso",
@@ -172,10 +200,14 @@ describe("TreeID", function () {
         organicCertified: true,
         irrigationType: "Drip",
         soilType: "Red Soil",
-        coordinates: "19.0760,72.8777"
+        coordinates: "19.0760,72.8777",
+        isActive: true,
+        reputation: 0,
+        ipfsHash: ""
       };
       
       await treeID.connect(farmer1).registerTree(treeData);
+      globalTreeId = 1; // First tree gets ID 1
     });
 
     it("Should return correct tree count for farmer", async function () {
@@ -189,9 +221,77 @@ describe("TreeID", function () {
       expect(tree.variety).to.equal("Alphonso");
     });
 
-    it("Should return empty tree data for non-existent tree", async function () {
-      const tree = await treeID.getTree(farmer1.address, 999);
-      expect(tree.farmerAddress).to.equal(ethers.ZeroAddress);
+    it("Should throw error for non-existent tree", async function () {
+      await expect(
+        treeID.getTree(farmer1.address, 999)
+      ).to.be.revertedWith("Tree does not exist");
+    });
+
+    it("Should get tree by global treeId", async function () {
+      const tree = await treeID.getTreeById(1); // First tree gets ID 1
+      expect(tree.farmerAddress).to.equal(farmer1.address);
+      expect(tree.variety).to.equal("Alphonso");
+      expect(tree.location).to.equal("Maharashtra, India");
+    });
+
+    it("Should check if tree is active by treeId", async function () {
+      const isActive = await treeID.isTreeActiveById(1);
+      expect(isActive).to.be.true;
+    });
+
+    it("Should return false for non-existent tree by treeId", async function () {
+      const isActive = await treeID.isTreeActiveById(999);
+      expect(isActive).to.be.false;
+    });
+  });
+
+  describe("Tree Deactivation", function () {
+    let globalTreeId: number;
+
+    beforeEach(async function () {
+      const treeData = {
+        treeId: 0,
+        farmerAddress: farmer1.address,
+        location: "Maharashtra, India",
+        variety: "Alphonso",
+        plantingDate: Math.floor(Date.now() / 1000),
+        expectedHarvestDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
+        organicCertified: true,
+        irrigationType: "Drip",
+        soilType: "Red Soil",
+        coordinates: "19.0760,72.8777",
+        isActive: true,
+        reputation: 0,
+        ipfsHash: ""
+      };
+      
+      await treeID.connect(farmer1).registerTree(treeData);
+      globalTreeId = 1; // First tree gets ID 1
+    });
+
+    it("Should allow farmer to deactivate their tree", async function () {
+      await treeID.connect(farmer1).deactivateTree(0);
+      
+      const isActive = await treeID.isTreeActiveById(globalTreeId);
+      expect(isActive).to.be.false;
+    });
+
+    it("Should preserve tree data after deactivation", async function () {
+      await treeID.connect(farmer1).deactivateTree(0);
+      
+      // Tree data should still be accessible for traceability
+      const tree = await treeID.getTreeById(globalTreeId);
+      expect(tree.farmerAddress).to.equal(farmer1.address);
+      expect(tree.variety).to.equal("Alphonso");
+      expect(tree.isActive).to.be.false;
+    });
+
+    it("Should not allow updating deactivated tree", async function () {
+      await treeID.connect(farmer1).deactivateTree(0);
+      
+      await expect(
+        treeID.connect(farmer1).updateTreeLocation(0, "New Location")
+      ).to.be.revertedWith("Tree does not exist");
     });
   });
 
@@ -204,7 +304,7 @@ describe("TreeID", function () {
     it("Should not allow non-owner to transfer ownership", async function () {
       await expect(
         treeID.connect(farmer1).transferOwnership(addr1.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(treeID, "OwnableUnauthorizedAccount");
     });
   });
 });

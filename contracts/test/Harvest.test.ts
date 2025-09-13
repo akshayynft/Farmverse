@@ -9,30 +9,28 @@ describe("Harvest", function () {
   let owner: SignerWithAddress;
   let farmer1: SignerWithAddress;
   let farmer2: SignerWithAddress;
-  let processor: SignerWithAddress;
   let addr1: SignerWithAddress;
 
   beforeEach(async function () {
     [owner, farmer1, farmer2, processor, addr1] = await ethers.getSigners();
     
-    // Deploy TreeID contract first
+    // Deploy contracts with no parameters
     const TreeIDFactory = await ethers.getContractFactory("TreeID");
     treeID = await TreeIDFactory.deploy();
     await treeID.waitForDeployment();
     
-    // Deploy Harvest contract
     const HarvestFactory = await ethers.getContractFactory("Harvest");
-    harvest = await HarvestFactory.deploy(await treeID.getAddress());
+    harvest = await HarvestFactory.deploy();
     await harvest.waitForDeployment();
   });
 
   describe("Deployment", function () {
-    it("Should set the correct TreeID contract address", async function () {
-      expect(await harvest.treeIDContract()).to.equal(await treeID.getAddress());
-    });
-
     it("Should set the right owner", async function () {
       expect(await harvest.owner()).to.equal(owner.address);
+    });
+
+    it("Should have correct contract name", async function () {
+      expect(await harvest.name()).to.equal("Farmaverse Harvest");
     });
   });
 

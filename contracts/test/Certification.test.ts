@@ -17,36 +17,27 @@ describe("Certification", function () {
   beforeEach(async function () {
     [owner, farmer1, farmer2, lab, certifier, addr1] = await ethers.getSigners();
     
-    // Deploy TreeID contract first
+    // Deploy contracts with no parameters
     const TreeIDFactory = await ethers.getContractFactory("TreeID");
     treeID = await TreeIDFactory.deploy();
     await treeID.waitForDeployment();
     
-    // Deploy Harvest contract
     const HarvestFactory = await ethers.getContractFactory("Harvest");
-    harvest = await HarvestFactory.deploy(await treeID.getAddress());
+    harvest = await HarvestFactory.deploy();
     await harvest.waitForDeployment();
     
-    // Deploy Certification contract
     const CertificationFactory = await ethers.getContractFactory("Certification");
-    certification = await CertificationFactory.deploy(
-      await treeID.getAddress(),
-      await harvest.getAddress()
-    );
+    certification = await CertificationFactory.deploy();
     await certification.waitForDeployment();
   });
 
   describe("Deployment", function () {
-    it("Should set the correct TreeID contract address", async function () {
-      expect(await certification.treeIDContract()).to.equal(await treeID.getAddress());
-    });
-
-    it("Should set the correct Harvest contract address", async function () {
-      expect(await certification.harvestContract()).to.equal(await harvest.getAddress());
-    });
-
     it("Should set the right owner", async function () {
       expect(await certification.owner()).to.equal(owner.address);
+    });
+
+    it("Should have correct contract name", async function () {
+      expect(await certification.name()).to.equal("Farmaverse Certification");
     });
   });
 

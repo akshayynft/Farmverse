@@ -131,8 +131,25 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         string memory farmerLocation,
         string memory farmerIpfsHash
     ) external nonReentrant returns (uint256 treeId) {
+        // Create Tree struct for registration
+        TreeID.Tree memory treeData = TreeID.Tree({
+            treeId: 0, // Will be set by registerTree
+            farmerAddress: msg.sender,
+            location: location,
+            variety: cropType,
+            plantingDate: plantingDate,
+            expectedHarvestDate: 0, // Can be set later
+            organicCertified: false, // Can be updated later
+            irrigationType: "", // Can be set later
+            soilType: "", // Can be set later
+            coordinates: "", // Can be set later
+            isActive: true,
+            reputation: 0,
+            ipfsHash: treeIpfsHash
+        });
+        
         // Register tree
-        treeId = treeIDContract.registerTree(location, cropType, plantingDate, treeIpfsHash);
+        treeId = treeIDContract.registerTree(treeData);
         
         // Register farmer in reputation system
         try farmerReputationContract.registerFarmer(farmerName, farmerLocation, farmerIpfsHash) {
@@ -400,7 +417,7 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < harvestIds.length; i++) {
             Harvest.HarvestData memory harvest = harvestContract.getHarvest(harvestIds[i]);
             treeIds[i] = harvest.treeId;
-            trees[i] = treeIDContract.getTree(harvest.treeId);
+            trees[i] = treeIDContract.getTreeById(harvest.treeId);
         }
         
         return (batch, transfers, harvestIds, treeIds, trees);

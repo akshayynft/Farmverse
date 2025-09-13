@@ -11,49 +11,39 @@ describe("SupplyChain", function () {
   let owner: SignerWithAddress;
   let farmer1: SignerWithAddress;
   let farmer2: SignerWithAddress;
-  let processor: SignerWithAddress;
   let distributor: SignerWithAddress;
   let retailer: SignerWithAddress;
   let consumer: SignerWithAddress;
   let addr1: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, farmer1, farmer2, processor, distributor, retailer, consumer, addr1] = await ethers.getSigners();
+    [owner, farmer1, farmer2, distributor, retailer, consumer, addr1] = await ethers.getSigners();
     
-    // Deploy contracts
+    // Deploy contracts with no parameters
     const TreeIDFactory = await ethers.getContractFactory("TreeID");
     treeID = await TreeIDFactory.deploy();
     await treeID.waitForDeployment();
     
     const HarvestFactory = await ethers.getContractFactory("Harvest");
-    harvest = await HarvestFactory.deploy(await treeID.getAddress());
+    harvest = await HarvestFactory.deploy();
     await harvest.waitForDeployment();
     
     const CertificationFactory = await ethers.getContractFactory("Certification");
-    certification = await CertificationFactory.deploy(
-      await treeID.getAddress(),
-      await harvest.getAddress()
-    );
+    certification = await CertificationFactory.deploy();
     await certification.waitForDeployment();
     
     const SupplyChainFactory = await ethers.getContractFactory("SupplyChain");
-    supplyChain = await SupplyChainFactory.deploy(
-      await treeID.getAddress(),
-      await harvest.getAddress(),
-      await certification.getAddress()
-    );
+    supplyChain = await SupplyChainFactory.deploy();
     await supplyChain.waitForDeployment();
   });
 
   describe("Deployment", function () {
-    it("Should set the correct contract addresses", async function () {
-      expect(await supplyChain.treeIDContract()).to.equal(await treeID.getAddress());
-      expect(await supplyChain.harvestContract()).to.equal(await harvest.getAddress());
-      expect(await supplyChain.certificationContract()).to.equal(await certification.getAddress());
-    });
-
     it("Should set the right owner", async function () {
       expect(await supplyChain.owner()).to.equal(owner.address);
+    });
+
+    it("Should have correct contract name", async function () {
+      expect(await supplyChain.name()).to.equal("Farmaverse Supply Chain");
     });
   });
 
@@ -215,7 +205,7 @@ describe("SupplyChain", function () {
     it("Should allow farmers to transfer products to processors", async function () {
       const transferData = {
         productId: productId,
-        newOwner: processor.address,
+        newOwner: distributor.address,
         transferType: "Processing",
         temperature: 4, // Celsius
         humidity: 85, // Percentage
@@ -226,13 +216,13 @@ describe("SupplyChain", function () {
       await supplyChain.connect(farmer1).transferOwnership(transferData);
       
       const product = await supplyChain.getProduct(farmer1.address, productId);
-      expect(product.currentOwner).to.equal(processor.address);
+      expect(product.currentOwner).to.equal(distributor.address);
     });
 
     it("Should emit OwnershipTransferred event", async function () {
       const transferData = {
         productId: productId,
-        newOwner: processor.address,
+        newOwner: distributor.address,
         transferType: "Processing",
         temperature: 4,
         humidity: 85,
@@ -242,13 +232,13 @@ describe("SupplyChain", function () {
 
       await expect(supplyChain.connect(farmer1).transferOwnership(transferData))
         .to.emit(supplyChain, "OwnershipTransferred")
-        .withArgs(farmer1.address, processor.address, productId, "Processing");
+        .withArgs(farmer1.address, distributor.address, productId, "Processing");
     });
 
     it("Should track environmental conditions during transfer", async function () {
       const transferData = {
         productId: productId,
-        newOwner: processor.address,
+        newOwner: distributor.address,
         transferType: "Processing",
         temperature: 4,
         humidity: 85,
@@ -266,7 +256,7 @@ describe("SupplyChain", function () {
     it("Should maintain transfer history", async function () {
       const transferData1 = {
         productId: productId,
-        newOwner: processor.address,
+        newOwner: distributor.address,
         transferType: "Processing",
         temperature: 4,
         humidity: 85,
@@ -278,7 +268,7 @@ describe("SupplyChain", function () {
 
       const transferData2 = {
         productId: productId,
-        newOwner: distributor.address,
+        newOwner: retailer.address,
         transferType: "Distribution",
         temperature: 6,
         humidity: 80,
@@ -286,7 +276,7 @@ describe("SupplyChain", function () {
         notes: "Transfer to distribution center"
       };
 
-      await supplyChain.connect(processor).transferOwnership(transferData2);
+      await supplyChain.connect(distributor).transferOwnership(transferData2);
       
       const transferCount = await supplyChain.getTransferHistoryCount(productId);
       expect(transferCount).to.equal(2);
@@ -474,7 +464,7 @@ describe("SupplyChain", function () {
     it("Should not allow transferring non-existent products", async function () {
       const transferData = {
         productId: 999,
-        newOwner: processor.address,
+        newOwner: distributor.address,
         transferType: "Processing",
         temperature: 4,
         humidity: 85,
