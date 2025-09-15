@@ -191,20 +191,32 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
      * @param score Event score
      * @param eventType Type of event
      */
+     
+     // Farmer reputation mechanism
     function updateFarmerReputation(address farmer, uint256 score, string memory eventType) internal {
         FarmerProfile storage profile = farmerProfiles[farmer];
+        
+        // Apply reputation decay based on time since last update
+        uint256 timeSinceLastUpdate = block.timestamp - farmerLastUpdate[farmer];
+        uint256 decayAmount = (timeSinceLastUpdate / 86400) * REPUTATION_DECAY_RATE; // Daily decay
+        
+        if (profile.reputationScore > decayAmount) {
+            profile.reputationScore -= decayAmount;
+        } else {
+            profile.reputationScore = 0;
+        }
         
         // Calculate reputation change based on event type
         uint256 reputationChange = 0;
         
         if (keccak256(bytes(eventType)) == keccak256(bytes("Harvest_Quality"))) {
-            reputationChange = score * 2; // Quality events have higher weight
+            reputationChange = score * 2;
         } else if (keccak256(bytes(eventType)) == keccak256(bytes("Certification"))) {
-            reputationChange = score * 3; // Certifications have highest weight
+            reputationChange = score * 3;
         } else if (keccak256(bytes(eventType)) == keccak256(bytes("Consumer_Rating"))) {
-            reputationChange = score * 1; // Consumer ratings have standard weight
+            reputationChange = score * 1;
         } else if (keccak256(bytes(eventType)) == keccak256(bytes("Organic_Score"))) {
-            reputationChange = score * 2; // Organic scores have higher weight
+            reputationChange = score * 2;
         }
         
         // Apply reputation change
@@ -221,7 +233,25 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
         
         emit ReputationUpdated(farmer, newScore, _reputationEventIdCounter);
     }
-    
+
+    // Tier upgrade logic
+    function checkTierUpgrade(address farmer, uint256 newScore) internal {
+        uint256 currentTier = farmerTier[farmer];
+        uint256 newTier = currentTier;
+        
+        // FIXED: Proper tier boundary checking
+        for (uint256 i = 4; i >= 1; i--) { // Check from highest to lowest tier
+            if (newScore >= reputationTiers[i].minScore) {
+                newTier = i;
+                break;
+            }
+        }
+        
+        if (newTier != currentTier) {
+            farmerTier[farmer] = newTier;
+            emit TierUpgraded(farmer, reputationTiers[newTier].tierName);
+        }
+    }
     /**
      * @dev Update quality metrics for a farmer
      * @param farmer Address of the farmer
@@ -301,22 +331,6 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
      * @param farmer Address of the farmer
      * @param newScore New reputation score
      */
-    function checkTierUpgrade(address farmer, uint256 newScore) internal {
-        uint256 currentTier = farmerTier[farmer];
-        uint256 newTier = currentTier;
-        
-        for (uint256 i = 1; i <= 4; i++) {
-            if (newScore >= reputationTiers[i].minScore && newScore <= reputationTiers[i].maxScore) {
-                newTier = i;
-                break;
-            }
-        }
-        
-        if (newTier != currentTier) {
-            farmerTier[farmer] = newTier;
-            emit TierUpgraded(farmer, reputationTiers[newTier].tierName);
-        }
-    }
     
     /**
      * @dev Get farmer profile

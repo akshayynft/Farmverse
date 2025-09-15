@@ -59,7 +59,8 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
     mapping(address => uint256[]) public consumerVerifications; // consumer to verification IDs
     mapping(uint256 => uint256) public batchAverageRating; // batchId to average rating
     mapping(uint256 => uint256) public batchTotalRatings; // batchId to total ratings
-    
+    mapping(address => bool) public authorizedCheckers; // Authorized authenticity checkers
+
     // Events
     event ConsumerRegistered(address indexed consumer, string name);
     event ProductVerified(uint256 indexed verificationId, uint256 indexed batchId, address indexed consumer);
@@ -166,7 +167,12 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
         string memory checkType,
         string memory checkNotes
     ) external {
-        require(consumerProfiles[msg.sender].isActive || msg.sender == owner(), "Not authorized");
+        require(
+            consumerProfiles[msg.sender].isActive || 
+            msg.sender == owner() || 
+            authorizedCheckers[msg.sender], 
+            "Not authorized"
+        );
         require(bytes(checkType).length > 0, "Check type cannot be empty");
         
         AuthenticityCheck memory check = AuthenticityCheck({
@@ -184,6 +190,9 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
         emit AuthenticityChecked(batchId, isAuthentic, msg.sender);
     }
     
+    function authorizeChecker(address checker, bool authorized) external onlyOwner {
+    authorizedCheckers[checker] = authorized;
+}
     /**
      * @dev Get verification details
      * @param verificationId The verification ID
@@ -270,10 +279,15 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
      * @param consumer Address of the consumer
      * @param points Points to award
      */
-    function awardVerificationPoints(address consumer, uint256 points) internal {
-        consumerProfiles[consumer].rewardPoints += points;
-        emit RewardPointsEarned(consumer, points);
+ function awardVerificationPoints(address consumer, uint256 points) internal {
+    uint256 maxPoints = 10000; // Set reasonable limit
+    uint256 newPoints = consumerProfiles[consumer].rewardPoints + points;
+    if (newPoints > maxPoints) {
+        newPoints = maxPoints;
     }
+    consumerProfiles[consumer].rewardPoints = newPoints;
+    emit RewardPointsEarned(consumer, points);
+}
     
     /**
      * @dev Deactivate a consumer (only owner)
@@ -330,3 +344,4 @@ contract ConsumerVerification is Ownable, ReentrancyGuard {
         totalRatings = batchTotalRatings[batchId];
     }
 }
+

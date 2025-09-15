@@ -57,6 +57,8 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         uint256 indexed batchId,
         address farmer
     );
+   
+    event FarmerRegistrationFailed(address indexed farmer, string reason);
     
     constructor() Ownable(msg.sender) {}
     
@@ -131,6 +133,14 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         string memory farmerLocation,
         string memory farmerIpfsHash
     ) external nonReentrant returns (uint256 treeId) {
+        //Input validation
+        require(bytes(location).length > 0, "Location cannot be empty");
+        require(bytes(cropType).length > 0, "Crop type cannot be empty");
+        require(plantingDate <= block.timestamp, "Planting date cannot be in future");
+        require(bytes(treeIpfsHash).length > 0, "Tree IPFS hash cannot be empty");
+        require(bytes(farmerName).length > 0, "Farmer name cannot be empty");
+        require(bytes(farmerLocation).length > 0, "Farmer location cannot be empty");
+        require(bytes(farmerIpfsHash).length > 0, "Farmer IPFS hash cannot be empty");
         // Create Tree struct for registration
         TreeID.Tree memory treeData = TreeID.Tree({
             treeId: 0, // Will be set by registerTree
@@ -153,12 +163,16 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         
         // Register farmer in reputation system
         try farmerReputationContract.registerFarmer(farmerName, farmerLocation, farmerIpfsHash) {
-            // Success
-        } catch {
-            // Farmer might already be registered, continue
-        }
-        
-        return treeId;
+        // Success - farmer registered
+    } catch Error(string memory reason) {
+        // Log the error but continue
+        emit FarmerRegistrationFailed(msg.sender, reason);
+    } catch {
+        // Handle any other errors
+        emit FarmerRegistrationFailed(msg.sender, "Unknown error");
+    }
+    
+    return treeId;
     }
     
     /**
