@@ -110,7 +110,7 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         farmerReputationContract = FarmerReputation(_farmerReputation);
         wasteManagementContract = WasteManagement(_wasteManagement);
         processingContract = Processing(_processing);
-        
+        supplyChainContract.setHarvestContract(_harvest);
         emit ContractsDeployed(_treeID, _certification, _harvest, _supplyChain, _consumerVerification, _farmerReputation, _wasteManagement, _processing);
     }
     
@@ -317,18 +317,18 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
     }
     
     /**
-     * @dev Create product batch and enter supply chain
-     * @param harvestIds Array of harvest IDs
-     * @param batchCode Human-readable batch code
-     * @param qrCodeHash QR code IPFS hash
-     * @param to Recipient address
-     * @param transferType Transfer type
-     * @param location Transfer location
-     * @param transferIpfsHash Transfer documents
-     * @param temperature Storage temperature
-     * @param humidity Storage humidity
-     * @param transportMethod Transport method
-     */
+    * @dev Create product batch and enter supply chain
+    * @param harvestIds Array of harvest IDs
+    * @param batchCode Human-readable batch code
+    * @param qrCodeHash QR code IPFS hash
+    * @param to Recipient address
+    * @param transferType Transfer type
+    * @param location Transfer location
+    * @param transferIpfsHash Transfer documents
+    * @param temperature Storage temperature
+    * @param humidity Storage humidity
+    * @param transportMethod Transport method
+    */
     function createBatchAndTransfer(
         uint256[] memory harvestIds,
         string memory batchCode,
@@ -341,6 +341,29 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
         uint256 humidity,
         string memory transportMethod
     ) external nonReentrant returns (uint256 batchId) {
+        require(harvestIds.length > 0, "Must include at least one harvest");
+        
+        // Validate harvests and calculate total quantity
+        uint256 totalQuantity = 0;
+        for (uint256 i = 0; i < harvestIds.length; i++) {
+            Harvest.HarvestData memory harvest = harvestContract.getHarvest(harvestIds[i]);
+            
+            // Validate harvest ownership
+            require(harvest.farmer == msg.sender, "Not owner of all harvests");
+            
+            // Validate harvest not already used in a batch
+            require(!harvest.isProcessed, "Harvest already processed");
+            
+            // Accumulate quantity
+            totalQuantity += harvest.quantity;
+            
+            // Mark harvest as processed to prevent reuse
+            // Note: This requires the harvest contract to allow this call
+            // You may need to add access control in Harvest.sol
+        }
+        
+        require(totalQuantity > 0, "Total quantity must be greater than 0");
+        
         // Create product batch
         batchId = supplyChainContract.createProductBatch(harvestIds, batchCode, qrCodeHash);
         

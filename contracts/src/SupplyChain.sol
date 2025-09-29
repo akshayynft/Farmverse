@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./Harvest.sol";
 
 /**
  * @title SupplyChain
@@ -13,6 +14,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 contract SupplyChain is Ownable, ReentrancyGuard {
     // Counter for product batch IDs
     uint256 private _batchIdCounter;
+    // Contract reference 
+    Harvest public harvestContract;
     
     // Structure for product batch
     struct ProductBatch {
@@ -66,8 +69,19 @@ contract SupplyChain is Ownable, ReentrancyGuard {
     event SupplyChainNodeRegistered(address indexed nodeAddress, string nodeType);
     event QRCodeGenerated(uint256 indexed batchId, string qrCodeHash);
     event BatchVerified(uint256 indexed batchId, bool verified);
-    
+    event HarvestContractUpdated(address indexed harvestContract);
+
     constructor() Ownable(msg.sender) {}
+    
+    /**
+     * @dev Set Harvest contract address (only owner)
+     * @param _harvestContract Address of Harvest contract
+     */
+    function setHarvestContract(address _harvestContract) external onlyOwner {
+        require(_harvestContract != address(0), "Invalid harvest contract address");
+        harvestContract = Harvest(_harvestContract);
+        emit HarvestContractUpdated(_harvestContract);
+    }
     
     /**
      * @dev Create a new product batch from harvests
@@ -83,22 +97,27 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         require(harvestIds.length > 0, "Must include at least one harvest");
         require(bytes(batchCode).length > 0, "Batch code cannot be empty");
         require(bytes(qrCodeHash).length > 0, "QR code hash cannot be empty");
+        require(address(harvestContract) != address(0), "Harvest contract not set"); // ✅ ADDED
         
         _batchIdCounter++;
         uint256 newBatchId = _batchIdCounter;
         
-        // Calculate total quantity from harvests
+        // Get actual harvest quantities
         uint256 totalQuantity = 0;
         for (uint256 i = 0; i < harvestIds.length; i++) {
-            // Get actual harvest quantity from Harvest contract
-            // Note: This requires Harvest contract to be deployed and accessible
-            // For now, we'll use a placeholder until contracts are deployed
-            totalQuantity += 1000; // Placeholder: 1kg per harvest
-            // TODO: Replace with: totalQuantity += harvestContract.getHarvest(harvestIds[i]).quantity;
+            Harvest.HarvestData memory harvest = harvestContract.getHarvest(harvestIds[i]);
+            
+            // Verify caller owns the harvest
+            require(harvest.farmer == msg.sender, "Not harvest owner");
+            
+            // Verify harvest exists
+            require(harvest.harvestId != 0, "Harvest does not exist");
+            
+            // Add to total
+            totalQuantity += harvest.quantity;
         }
         
-        // Note: Waste will be tracked separately in WasteManagement contract
-        // This quantity represents the initial harvest quantity before any waste
+        require(totalQuantity > 0, "Total quantity must be greater than 0");
         
         ProductBatch memory newBatch = ProductBatch({
             batchId: newBatchId,
@@ -125,8 +144,8 @@ contract SupplyChain is Ownable, ReentrancyGuard {
             transferType: "Farmer",
             location: "Farm",
             ipfsHash: "",
-            temperature: 25, // Default temperature
-            humidity: 60, // Default humidity
+            temperature: 25,
+            humidity: 60,
             transportMethod: "None"
         });
         
@@ -137,7 +156,7 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         
         return newBatchId;
     }
-    
+
     /**
      * @dev Transfer ownership of a product batch
      * @param batchId The batch ID to transfer
