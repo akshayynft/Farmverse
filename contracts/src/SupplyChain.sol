@@ -27,7 +27,7 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         string batchCode; // Human-readable batch code
         string qrCodeHash; // IPFS hash for QR code
         bool isActive;
-        uint256 currentOwner; // Index in ownership chain
+        address currentOwner; // Current owner address
     }
     
     // Structure for ownership transfer
@@ -102,16 +102,19 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         _batchIdCounter++;
         uint256 newBatchId = _batchIdCounter;
         
-        // Get actual harvest quantities
+        // Get actual harvest quantities and verify ownership
         uint256 totalQuantity = 0;
         for (uint256 i = 0; i < harvestIds.length; i++) {
             Harvest.HarvestData memory harvest = harvestContract.getHarvest(harvestIds[i]);
             
-            // Verify caller owns the harvest
-            require(harvest.farmer == msg.sender, "Not harvest owner");
-            
             // Verify harvest exists
             require(harvest.harvestId != 0, "Harvest does not exist");
+            
+            // Verify caller owns ALL harvests
+            require(harvest.farmer == msg.sender, "Not owner of all harvests");
+            
+            // Verify harvest is not already processed
+            require(!harvest.isProcessed, "Harvest already processed");
             
             // Add to total
             totalQuantity += harvest.quantity;
@@ -128,7 +131,7 @@ contract SupplyChain is Ownable, ReentrancyGuard {
             batchCode: batchCode,
             qrCodeHash: qrCodeHash,
             isActive: true,
-            currentOwner: 0
+            currentOwner: msg.sender
         });
         
         productBatches[newBatchId] = newBatch;
@@ -198,7 +201,7 @@ contract SupplyChain is Ownable, ReentrancyGuard {
         });
         
         batchTransfers[batchId].push(transfer);
-        productBatches[batchId].currentOwner = batchTransfers[batchId].length - 1;
+        productBatches[batchId].currentOwner = to;
         
         // Update node batches
         nodeBatches[to].push(batchId);
@@ -323,10 +326,7 @@ contract SupplyChain is Ownable, ReentrancyGuard {
      */
     function getCurrentOwner(uint256 batchId) external view returns (address) {
         require(productBatches[batchId].batchId != 0, "Batch does not exist");
-        require(batchTransfers[batchId].length > 0, "No transfers found");
-        
-        uint256 currentOwnerIndex = productBatches[batchId].currentOwner;
-        return batchTransfers[batchId][currentOwnerIndex].to;
+        return productBatches[batchId].currentOwner;
     }
     
     /**

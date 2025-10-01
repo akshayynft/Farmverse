@@ -47,9 +47,9 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
     
     // Structure for quality metrics
     struct QualityMetrics {
-        uint256 farmerId;
         uint256 averageSize; // Average fruit size
         uint256 averageSweetness; // Average sweetness score
+        uint256 farmerId;
         uint256 averageFirmness; // Average firmness score
         uint256 defectRate; // Percentage of defects
         uint256 exportStandardCompliance; // Percentage meeting export standards
@@ -239,12 +239,15 @@ contract FarmerReputation is Ownable, ReentrancyGuard {
         uint256 currentTier = farmerTier[farmer];
         uint256 newTier = currentTier;
         
-        // FIXED: Proper tier boundary checking
-        for (uint256 i = 4; i >= 1; i--) { // Check from highest to lowest tier
-            if (newScore >= reputationTiers[i].minScore) {
-                newTier = i;
-                break;
-            }
+        // Check from highest to lowest tier
+        if (newScore >= 751) {
+            newTier = 4; // Platinum
+        } else if (newScore >= 501) {
+            newTier = 3; // Gold
+        } else if (newScore >= 251) {
+            newTier = 2; // Silver
+        } else {
+            newTier = 1; // Bronze
         }
         
         if (newTier != currentTier) {

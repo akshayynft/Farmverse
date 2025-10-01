@@ -348,7 +348,6 @@ contract TreeID is Ownable {
             treesData[i].treeId = newTreeId;
             treesData[i].isActive = true;
             treesData[i].reputation = 0;
-            c
             // Store data
             farmerTrees[msg.sender][treeIndex] = treesData[i];
             treesById[newTreeId] = treesData[i];
@@ -537,7 +536,7 @@ contract TreeID is Ownable {
             
             // Update both mappings
             farmerTrees[msg.sender][treeIndexes[i]].irrigationType = newIrrigationType;
-            treesById[treeId].irrigationType = newIrrigationType;`
+            treesById[treeId].irrigationType = newIrrigationType;
         }
         
         emit BatchIrrigationUpdate(msg.sender, treeIds, newIrrigationType, block.timestamp);
