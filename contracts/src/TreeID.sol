@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @title TreeID - Enhanced with Missing Batch Operations
@@ -9,7 +10,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * Optimized for gas efficiency while providing comprehensive event data
  * Enhanced with additional batch operations for farmer efficiency
  */
-contract TreeID is Ownable {
+contract TreeID is Ownable, ReentrancyGuard {  
     
     // ============ CONTRACT METADATA ============
     string public constant name = "Farmaverse Tree ID";
@@ -281,7 +282,7 @@ contract TreeID is Ownable {
     /**
      * @dev Register a new tree with gas optimization
      */
-    function registerTree(Tree memory treeData) external returns (uint256) {
+    function registerTree(Tree memory treeData) external nonReentrant returns (uint256) {
         // Input validation
         require(bytes(treeData.location).length > 0, "Location cannot be empty");
         require(bytes(treeData.variety).length > 0, "Variety cannot be empty");
@@ -328,7 +329,7 @@ contract TreeID is Ownable {
     /**
      * @dev Batch register multiple trees (gas efficient for farmers with many trees)
      */
-    function registerMultipleTrees(Tree[] memory treesData) external returns (uint256[] memory) {
+    function registerMultipleTrees(Tree[] memory treesData) external nonReentrant returns (uint256[] memory) {
         require(treesData.length > 0 && treesData.length <= 50, "Invalid batch size");
         
         uint256[] memory treeIds = new uint256[](treesData.length);
@@ -373,7 +374,7 @@ contract TreeID is Ownable {
     /**
      * @dev Update tree location with optimized event
      */
-    function updateTreeLocation(uint256 treeIndex, string memory newLocation) external {
+    function updateTreeLocation(uint256 treeIndex, string memory newLocation) external nonReentrant {
         require(farmerTrees[msg.sender][treeIndex].isActive, "Tree does not exist");
         require(bytes(newLocation).length > 0, "Location cannot be empty");
         
@@ -395,7 +396,7 @@ contract TreeID is Ownable {
     /**
      * @dev Update irrigation type with optimized event
      */
-    function updateIrrigationType(uint256 treeIndex, string memory newIrrigationType) external {
+    function updateIrrigationType(uint256 treeIndex, string memory newIrrigationType) external nonReentrant {
         require(farmerTrees[msg.sender][treeIndex].isActive, "Tree does not exist");
         require(bytes(newIrrigationType).length > 0, "Irrigation type cannot be empty");
         
@@ -416,7 +417,7 @@ contract TreeID is Ownable {
      * @dev Update organic certification with detailed tracking
      * Note: Still allows self-declaration (security issue to be addressed in separate contract)
      */
-    function updateOrganicCertification(uint256 treeIndex, bool organicCertified) external {
+    function updateOrganicCertification(uint256 treeIndex, bool organicCertified) external nonReentrant {
         require(farmerTrees[msg.sender][treeIndex].isActive, "Tree does not exist");
         
         uint256 treeId = farmerTrees[msg.sender][treeIndex].treeId;
@@ -440,7 +441,7 @@ contract TreeID is Ownable {
     /**
      * @dev Update tree reputation (FIXED - now actually updates the data)
      */
-    function updateReputation(uint256 treeId, uint256 newReputation) external onlyOwner {
+    function updateReputation(uint256 treeId, uint256 newReputation) external nonReentrant onlyOwner {
         require(newReputation <= 100, "Reputation cannot exceed 100");
         require(treesById[treeId].treeId != 0, "Tree does not exist");
         
@@ -471,7 +472,7 @@ contract TreeID is Ownable {
     /**
      * @dev Deactivate tree with event emission
      */
-    function deactivateTree(uint256 treeIndex, string memory reason) external {
+    function deactivateTree(uint256 treeIndex, string memory reason) external nonReentrant {
         require(farmerTrees[msg.sender][treeIndex].isActive, "Tree is already inactive");
         
         uint256 treeId = farmerTrees[msg.sender][treeIndex].treeId;
@@ -493,7 +494,7 @@ contract TreeID is Ownable {
     /**
      * @dev Reactivate tree (new function for tree lifecycle management)
      */
-    function reactivateTree(uint256 treeIndex, string memory reason) external {
+    function reactivateTree(uint256 treeIndex, string memory reason) external nonReentrant {
         require(!farmerTrees[msg.sender][treeIndex].isActive, "Tree is already active");
         require(farmerTrees[msg.sender][treeIndex].treeId != 0, "Tree does not exist");
         
@@ -522,7 +523,7 @@ contract TreeID is Ownable {
     function batchUpdateIrrigation(
         uint256[] calldata treeIndexes,
         string calldata newIrrigationType
-    ) external rateLimitBatch {
+    ) external rateLimitBatch nonReentrant {
         require(treeIndexes.length > 0 && treeIndexes.length <= MAX_BATCH_SIZE, "Invalid batch size");
         require(bytes(newIrrigationType).length > 0, "Irrigation type cannot be empty");
         
@@ -550,7 +551,7 @@ contract TreeID is Ownable {
         uint256[] calldata treeIndexes,
         bool[] calldata statuses,
         string calldata reason
-    ) external rateLimitBatch {
+    ) external nonReentrant rateLimitBatch {
         require(treeIndexes.length > 0 && treeIndexes.length <= MAX_BATCH_SIZE, "Invalid batch size");
         require(treeIndexes.length == statuses.length, "Array length mismatch");
         require(bytes(reason).length > 0, "Reason cannot be empty");
@@ -584,7 +585,7 @@ contract TreeID is Ownable {
         uint256[] calldata treeIndexes,
         uint256 newHarvestDate,
         string calldata season
-    ) external rateLimitBatch {
+    ) external nonReentrant rateLimitBatch {
         require(treeIndexes.length > 0 && treeIndexes.length <= MAX_BATCH_SIZE, "Invalid batch size");
         require(newHarvestDate > block.timestamp, "Harvest date must be future");
         require(newHarvestDate <= block.timestamp + 365 days, "Harvest date too far");
@@ -614,7 +615,7 @@ contract TreeID is Ownable {
         uint256[] calldata treeIds,
         CertificationStatus status,
         string calldata certificateReference
-    ) external onlyOwner {
+    ) external nonReentrant onlyOwner {
         require(treeIds.length > 0 && treeIds.length <= 200, "Invalid batch size for certification");
         require(bytes(certificateReference).length > 0, "Certificate reference required");
         
@@ -665,7 +666,7 @@ contract TreeID is Ownable {
         string calldata dosage,
         bool isOrganicCompliant,
         string calldata ipfsDocumentHash
-    ) external rateLimitBatch {
+    ) external nonReentrant rateLimitBatch {
         require(treeIndexes.length > 0 && treeIndexes.length <= MAX_BATCH_SIZE, "Invalid batch size");
         require(bytes(productName).length > 0, "Product name required");
         require(bytes(company).length > 0, "Company required");
