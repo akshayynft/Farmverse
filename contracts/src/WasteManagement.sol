@@ -1,285 +1,347 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /**
- * @title WasteManagement
- * @dev Smart contract for tracking waste at each stage of the supply chain
- * Provides detailed waste categorization, reporting, and sustainability metrics
+ * @title SecureCertification
+ * @dev Gas-optimized, secure certification system with modular architecture
  */
-contract WasteManagement is Ownable, ReentrancyGuard {
-    // Counter for waste event IDs
-    uint256 private _wasteEventIdCounter;
+contract SecureCertification is AccessControl, ReentrancyGuard {
+    using EnumerableSet for EnumerableSet.UintSet;
     
-    // Structure for waste event
-    struct WasteEvent {
-        uint256 wasteEventId;
-        uint256 batchId;
-        address reportedBy;
-        uint256 timestamp;
-        uint256 quantity; // Waste quantity in grams
-        string stage; // "Harvest", "Processing", "Transport", "Storage", "Retail"
-        string wasteType; // "Damaged", "Overripe", "Spoiled", "Defective", "Expired"
-        string reason; // Reason for waste
-        string disposalMethod; // "Compost", "Animal_Feed", "Landfill", "Recycling"
-        bool isRecycled;
-        string ipfsHash; // Waste documentation and photos
-        uint256 cost; // Cost of waste in wei
+    // ========== CONSTANTS ==========
+    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
+    bytes32 public constant LAB_ROLE = keccak256("LAB_ROLE");
+    bytes32 public constant AUTHORITY_ROLE = keccak256("AUTHORITY_ROLE");
+    uint256 public constant MAX_BATCH_SIZE = 50;
+    uint256 public constant MAX_PHOTOS = 10;
+    uint256 public constant MAX_STRING_LENGTH = 500;
+    
+    // ========== STATE VARIABLES ==========
+    uint256 private _certificateIdCounter;
+    
+    // ========== OPTIMIZED STRUCTS ==========
+    struct Certificate {
+        uint256 certificateId;
+        uint256 treeId;
+        address farmer;
+        CertificationType certType;
+        CertificationSource source;
+        VerificationStatus verificationStatus;
+        uint256 authorityId;
+        uint256 issueDate;
+        uint256 expiryDate;
+        uint256 verificationDate;
+        address verifiedBy;
+        bool isActive;
+        string authorityName;
+        string certificateNumber;
+        string certificateDocumentHash;
     }
     
-    // Structure for waste statistics
-    struct WasteStats {
-        uint256 totalWasteQuantity;
-        uint256 totalWasteCost;
-        uint256 recycledQuantity;
-        uint256 compostedQuantity;
-        uint256 landfillQuantity;
-        uint256 animalFeedQuantity;
-        uint256 totalEvents;
+    // ========== STORAGE OPTIMIZATION ==========
+    mapping(uint256 => Certificate) public certificates;
+    mapping(uint256 => string) private _certificateSupportingDocs;
+    mapping(uint256 => string) private _certificateVerificationNotes;
+    
+    // Efficient storage for iterations
+    mapping(uint256 => EnumerableSet.UintSet) private _treeCertificates;
+    mapping(address => EnumerableSet.UintSet) private _farmerCertificates;
+    mapping(string => uint256) private _authorityRegistry;
+    
+    // ========== INTEGRATION INTERFACE ==========
+    ITreeIntegration private _integration;
+    
+    interface ITreeIntegration {
+        function treeExists(uint256 treeId) external view returns (bool);
+        function getTreeOwner(uint256 treeId) external view returns (address);
+        function updateCertificationStatus(uint256 treeId, bool certified) external;
     }
     
-    // Structure for stage waste tracking
-    struct StageWaste {
-        string stage;
-        uint256 totalWaste;
-        uint256 wastePercentage; // Percentage of total input
-        uint256 cost;
-        uint256 events;
+    // ========== ENUMS ==========
+    enum CertificationType {
+        Organic,
+        PesticideFree,
+        InTransition,
+        FairTrade,
+        Rainforest,
+        BirdFriendly,
+        Biodynamic,
+        NaturallyGrown,
+        GAP,
+        Custom
     }
     
-    // Mappings
-    mapping(uint256 => WasteEvent) public wasteEvents;
-    mapping(uint256 => uint256[]) public batchWasteEvents; // batchId to waste event IDs
-    mapping(address => uint256[]) public reporterWasteEvents; // reporter to waste event IDs
-    mapping(uint256 => WasteStats) public batchWasteStats; // batchId to waste statistics
-    mapping(string => StageWaste) public stageWasteStats; // stage to waste statistics
-    mapping(address => bool) public authorizedReporters; // Who can report waste
+    enum CertificationSource {
+        SelfUploaded,
+        PlatformVerified,
+        AuthorityIssued,
+        FarmaverseCertified,
+        TransitionDocumented
+    }
     
-    // Events
-    event WasteReported(uint256 indexed wasteEventId, uint256 indexed batchId, string stage, uint256 quantity);
-    event WasteRecycled(uint256 indexed wasteEventId, string disposalMethod);
-    event WasteStatsUpdated(uint256 indexed batchId, uint256 totalWaste, uint256 recycledQuantity);
-    event ReporterAuthorized(address indexed reporter, bool authorized);
+    enum VerificationStatus {
+        Pending,
+        UnderReview,
+        Verified,
+        Rejected,
+        Expired
+    }
     
-    constructor() Ownable(msg.sender) {}
+    // ========== EVENTS ==========
+    event CertificateUploaded(uint256 indexed certId, uint256 indexed treeId, address indexed farmer, CertificationSource source, string authority);
+    event CertificateVerified(uint256 indexed certId, address indexed verifier);
+    event CertificateRevoked(uint256 indexed certId, string reason);
+    event CertificateRenewed(uint256 indexed certId, uint256 newExpiry);
+    event AuthorityRegistered(string indexed name, uint256 id);
+    event VerificationRequested(uint256 indexed certId, address indexed farmer);
     
-    /**
-     * @dev Report waste at a specific stage
-     * @param batchId The batch ID
-     * @param quantity Waste quantity in grams
-     * @param stage Stage where waste occurred
-     * @param wasteType Type of waste
-     * @param reason Reason for waste
-     * @param disposalMethod How waste was disposed
-     * @param isRecycled Whether waste was recycled
-     * @param ipfsHash Waste documentation
-     * @param cost Cost of waste
-     */
-    function reportWaste(
-        uint256 batchId,
-        uint256 quantity,
-        string memory stage,
-        string memory wasteType,
-        string memory reason,
-        string memory disposalMethod,
-        bool isRecycled,
-        string memory ipfsHash,
-        uint256 cost
-    ) external nonReentrant returns (uint256) {
-        require(authorizedReporters[msg.sender] || msg.sender == owner(), "Not authorized to report waste");
-        require(quantity > 0, "Waste quantity must be greater than 0");
-        require(bytes(stage).length > 0, "Stage cannot be empty");
-        require(bytes(wasteType).length > 0, "Waste type cannot be empty");
-        require(bytes(reason).length > 0, "Reason cannot be empty");
-        require(bytes(disposalMethod).length > 0, "Disposal method cannot be empty");
+    // ========== MODIFIERS ==========
+    modifier validTree(uint256 treeId) {
+        require(_integration.treeExists(treeId), "Tree does not exist");
+        _;
+    }
+    
+    modifier validString(string memory str) {
+        require(bytes(str).length > 0 && bytes(str).length <= MAX_STRING_LENGTH, "Invalid string");
+        _;
+    }
+    
+    modifier certificateExists(uint256 certId) {
+        require(certificates[certId].certificateId != 0, "Certificate does not exist");
+        _;
+    }
+    
+    // ========== CONSTRUCTOR ==========
+    constructor(address admin, address treeIntegration) {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(VERIFIER_ROLE, admin);
+        _integration = ITreeIntegration(treeIntegration);
+        _initializeDefaultAuthorities();
+    }
+    
+    // ========== CERTIFICATE MANAGEMENT ==========
+    function uploadCertificate(
+        uint256 treeId,
+        CertificationType certType,
+        string memory authorityName,
+        string memory certificateNumber,
+        uint256 issueDate,
+        uint256 expiryDate,
+        string memory certificateDocHash,
+        string memory supportingDocsHash
+    ) external nonReentrant validTree(treeId) validString(authorityName) returns (uint256) {
         
-        _wasteEventIdCounter++;
-        uint256 newWasteEventId = _wasteEventIdCounter;
+        // CORRECT: Farmers CAN upload their own certificates
+        require(_integration.getTreeOwner(treeId) == msg.sender, "Not tree owner");
+        CertificationValidators.validateDateRange(issueDate, expiryDate);
+        CertificationValidators.validateIPFSHash(certificateDocHash);
         
-        WasteEvent memory wasteEvent = WasteEvent({
-            wasteEventId: newWasteEventId,
-            batchId: batchId,
-            reportedBy: msg.sender,
-            timestamp: block.timestamp,
-            quantity: quantity,
-            stage: stage,
-            wasteType: wasteType,
-            reason: reason,
-            disposalMethod: disposalMethod,
-            isRecycled: isRecycled,
-            ipfsHash: ipfsHash,
-            cost: cost
+        _certificateIdCounter++;
+        uint256 newCertId = _certificateIdCounter;
+        
+        certificates[newCertId] = Certificate({
+            certificateId: newCertId,
+            treeId: treeId,
+            farmer: msg.sender,
+            certType: certType,
+            source: CertificationSource.SelfUploaded,
+            verificationStatus: VerificationStatus.Pending,
+            authorityId: _findAuthorityByName(authorityName),
+            authorityName: authorityName,
+            certificateNumber: certificateNumber,
+            issueDate: issueDate,
+            expiryDate: expiryDate,
+            certificateDocumentHash: certificateDocHash,
+            verificationDate: 0,
+            verifiedBy: address(0),
+            isActive: true
         });
         
-        wasteEvents[newWasteEventId] = wasteEvent;
-        batchWasteEvents[batchId].push(newWasteEventId);
-        reporterWasteEvents[msg.sender].push(newWasteEventId);
+        _certificateSupportingDocs[newCertId] = supportingDocsHash;
+        _treeCertificates[treeId].add(newCertId);
+        _farmerCertificates[msg.sender].add(newCertId);
         
-        // Update batch waste statistics
-        updateBatchWasteStats(batchId, quantity, isRecycled, cost);
+        emit CertificateUploaded(newCertId, treeId, msg.sender, CertificationSource.SelfUploaded, authorityName);
         
-        // Update stage waste statistics
-        updateStageWasteStats(stage, quantity, cost);
+        return newCertId;
+    }
+    
+    function verifyCertificate(uint256 certId, string memory notes) 
+        external 
+        onlyRole(VERIFIER_ROLE) 
+        nonReentrant 
+        certificateExists(certId) 
+        validString(notes) 
+    {
+        Certificate storage cert = certificates[certId];
+        require(cert.isActive, "Inactive certificate");
+        require(cert.verificationStatus == VerificationStatus.Pending || 
+                cert.verificationStatus == VerificationStatus.UnderReview, "Invalid status");
         
-        emit WasteReported(newWasteEventId, batchId, stage, quantity);
+        cert.verificationStatus = VerificationStatus.Verified;
+        cert.verificationDate = block.timestamp;
+        cert.verifiedBy = msg.sender;
+        cert.source = CertificationSource.PlatformVerified;
+        _certificateVerificationNotes[certId] = notes;
         
-        if (isRecycled) {
-            emit WasteRecycled(newWasteEventId, disposalMethod);
+        // Update tree certification status
+        _integration.updateCertificationStatus(cert.treeId, true);
+        
+        emit CertificateVerified(certId, msg.sender);
+    }
+    
+    function revokeCertificate(uint256 certId, string memory reason) 
+        external 
+        onlyRole(VERIFIER_ROLE) 
+        nonReentrant 
+        certificateExists(certId) 
+        validString(reason) 
+    {
+        Certificate storage cert = certificates[certId];
+        require(cert.isActive, "Already inactive");
+        
+        cert.isActive = false;
+        cert.verificationStatus = VerificationStatus.Rejected;
+        
+        // Update tree certification status
+        _integration.updateCertificationStatus(cert.treeId, false);
+        
+        emit CertificateRevoked(certId, reason);
+    }
+    
+    function requestVerification(uint256 certId) 
+        external 
+        nonReentrant 
+        certificateExists(certId) 
+    {
+        Certificate storage cert = certificates[certId];
+        require(cert.farmer == msg.sender, "Not certificate owner");
+        require(cert.verificationStatus == VerificationStatus.Pending, "Already processed");
+        
+        cert.verificationStatus = VerificationStatus.UnderReview;
+        
+        emit VerificationRequested(certId, msg.sender);
+    }
+    
+    // ========== AUTHORITY MANAGEMENT ==========
+    function registerAuthority(string memory name, uint256 id) 
+        external 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+        validString(name) 
+    {
+        require(id > 0, "Invalid authority ID");
+        _authorityRegistry[name] = id;
+        emit AuthorityRegistered(name, id);
+    }
+    
+    function getAuthorityId(string memory name) external view returns (uint256) {
+        return _authorityRegistry[name];
+    }
+    
+    // ========== VIEW FUNCTIONS ==========
+    function getTreeActiveCertificatesPaginated(
+        uint256 treeId, 
+        uint256 page, 
+        uint256 pageSize
+    ) external view returns (Certificate[] memory, uint256 total) {
+        require(pageSize <= 100, "Page size too large");
+        
+        EnumerableSet.UintSet storage certIds = _treeCertificates[treeId];
+        total = _countActiveCertificates(certIds);
+        
+        uint256 start = page * pageSize;
+        if (start >= total) return (new Certificate[](0), total);
+        
+        uint256 end = start + pageSize > total ? total : start + pageSize;
+        Certificate[] memory results = new Certificate[](end - start);
+        uint256 resultIndex = 0;
+        
+        for (uint256 i = 0; i < certIds.length() && resultIndex < results.length; i++) {
+            uint256 certId = certIds.at(i);
+            if (_isCertificateActive(certificates[certId])) {
+                if (resultIndex >= start && resultIndex < end) {
+                    results[resultIndex - start] = certificates[certId];
+                }
+                resultIndex++;
+            }
         }
         
-        return newWasteEventId;
+        return (results, total);
     }
     
-    /**
-     * @dev Update batch waste statistics
-     * @param batchId Batch ID
-     * @param quantity Waste quantity
-     * @param isRecycled Whether recycled
-     * @param cost Waste cost
-     */
-    function updateBatchWasteStats(uint256 batchId, uint256 quantity, bool isRecycled, uint256 cost) internal {
-        WasteStats storage stats = batchWasteStats[batchId];
+    function getCertificateByTreeId(uint256 treeId) 
+        external 
+        view 
+        returns (Certificate[] memory) 
+    {
+        EnumerableSet.UintSet storage certIds = _treeCertificates[treeId];
+        Certificate[] memory certs = new Certificate[](certIds.length());
         
-        stats.totalWasteQuantity += quantity;
-        stats.totalWasteCost += cost;
-        stats.totalEvents += 1;
-        
-        if (isRecycled) {
-            stats.recycledQuantity += quantity;
+        for (uint256 i = 0; i < certIds.length(); i++) {
+            certs[i] = certificates[certIds.at(i)];
         }
         
-        emit WasteStatsUpdated(batchId, stats.totalWasteQuantity, stats.recycledQuantity);
+        return certs;
     }
     
-    /**
-     * @dev Update stage waste statistics
-     * @param stage Stage name
-     * @param quantity Waste quantity
-     * @param cost Waste cost
-     */
-    function updateStageWasteStats(string memory stage, uint256 quantity, uint256 cost) internal {
-        StageWaste storage stageStats = stageWasteStats[stage];
-        
-        stageStats.stage = stage;
-        stageStats.totalWaste += quantity;
-        stageStats.cost += cost;
-        stageStats.events += 1;
-        
-        // Calculate waste percentage (would need total input quantity)
-        // For now, we'll track it separately
+    function getFarmerCertificates(address farmer) 
+        external 
+        view 
+        returns (uint256[] memory) 
+    {
+        return _farmerCertificates[farmer].values();
     }
     
-    /**
-     * @dev Get waste events for a batch
-     * @param batchId Batch ID
-     * @return Array of waste event IDs
-     */
-    function getBatchWasteEvents(uint256 batchId) external view returns (uint256[] memory) {
-        return batchWasteEvents[batchId];
+    // ========== INTERNAL FUNCTIONS ==========
+    function _isCertificateActive(Certificate memory cert) internal view returns (bool) {
+        return cert.isActive && 
+               cert.expiryDate > block.timestamp && 
+               cert.verificationStatus != VerificationStatus.Rejected;
     }
     
-    /**
-     * @dev Get waste event details
-     * @param wasteEventId Waste event ID
-     * @return Waste event details
-     */
-    function getWasteEvent(uint256 wasteEventId) external view returns (WasteEvent memory) {
-        require(wasteEvents[wasteEventId].wasteEventId != 0, "Waste event does not exist");
-        return wasteEvents[wasteEventId];
-    }
-    
-    /**
-     * @dev Get waste statistics for a batch
-     * @param batchId Batch ID
-     * @return Waste statistics
-     */
-    function getBatchWasteStats(uint256 batchId) external view returns (WasteStats memory) {
-        return batchWasteStats[batchId];
-    }
-    
-    /**
-     * @dev Get stage waste statistics
-     * @param stage Stage name
-     * @return Stage waste statistics
-     */
-    function getStageWasteStats(string memory stage) external view returns (StageWaste memory) {
-        return stageWasteStats[stage];
-    }
-    
-    /**
-     * @dev Calculate waste percentage for a batch
-     * @param batchId Batch ID
-     * @param totalInputQuantity Total input quantity for the batch
-     * @return Waste percentage (0-100)
-     */
-    function calculateWastePercentage(uint256 batchId, uint256 totalInputQuantity) external view returns (uint256) {
-        require(totalInputQuantity > 0, "Total input quantity must be greater than 0");
-        
-        WasteStats memory stats = batchWasteStats[batchId];
-        return (stats.totalWasteQuantity * 100) / totalInputQuantity;
-    }
-    
-    /**
-     * @dev Get sustainability metrics
-     * @param batchId Batch ID
-     * @return recycledPercentage Percentage of waste recycled
-     * @return totalWaste Total waste quantity
-     * @return totalCost Total waste cost
-     */
-    function getSustainabilityMetrics(uint256 batchId) external view returns (
-        uint256 recycledPercentage,
-        uint256 totalWaste,
-        uint256 totalCost
-    ) {
-        WasteStats memory stats = batchWasteStats[batchId];
-        
-        totalWaste = stats.totalWasteQuantity;
-        totalCost = stats.totalWasteCost;
-        
-        if (totalWaste > 0) {
-            recycledPercentage = (stats.recycledQuantity * 100) / totalWaste;
-        } else {
-            recycledPercentage = 0;
+    function _countActiveCertificates(EnumerableSet.UintSet storage certIds) 
+        internal 
+        view 
+        returns (uint256) 
+    {
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < certIds.length(); i++) {
+            if (_isCertificateActive(certificates[certIds.at(i)])) {
+                activeCount++;
+            }
         }
-        
-        return (recycledPercentage, totalWaste, totalCost);
+        return activeCount;
     }
     
-    /**
-     * @dev Authorize waste reporter
-     * @param reporter Address to authorize
-     * @param authorized Whether to authorize
-     */
-    function authorizeReporter(address reporter, bool authorized) external onlyOwner {
-        authorizedReporters[reporter] = authorized;
-        emit ReporterAuthorized(reporter, authorized);
+    function _findAuthorityByName(string memory name) internal view returns (uint256) {
+        return _authorityRegistry[name];
     }
     
-    /**
-     * @dev Get total waste events
-     * @return Total count of waste events
-     */
-    function getTotalWasteEvents() external view returns (uint256) {
-        return _wasteEventIdCounter;
+    function _initializeDefaultAuthorities() internal {
+        // Initialize with common certification authorities
+        _authorityRegistry["NPOP (India)"] = 1;
+        _authorityRegistry["USDA NOP (USA)"] = 2;
+        _authorityRegistry["JAS (Japan)"] = 3;
+        _authorityRegistry["EU Organic"] = 4;
+        _authorityRegistry["GLOBALG.A.P."] = 5;
+    }
+}
+
+// ========== VALIDATION LIBRARY ==========
+library CertificationValidators {
+    function validateIPFSHash(string memory hash) internal pure {
+        require(bytes(hash).length == 46, "Invalid IPFS hash length");
+        // Basic IPFS CIDv0 validation (starts with Qm)
+        require(bytes(hash)[0] == 'Q' && bytes(hash)[1] == 'm', "Invalid IPFS format");
     }
     
-    /**
-     * @dev Get waste events by reporter
-     * @param reporter Reporter address
-     * @return Array of waste event IDs
-     */
-    function getReporterWasteEvents(address reporter) external view returns (uint256[] memory) {
-        return reporterWasteEvents[reporter];
-    }
-    
-    /**
-     * @dev Check if address is authorized to report waste
-     * @param reporter Reporter address
-     * @return True if authorized
-     */
-    function isReporterAuthorized(address reporter) external view returns (bool) {
-        return authorizedReporters[reporter] || reporter == owner();
+    function validateDateRange(uint256 start, uint256 end) internal view {
+        require(start < end, "Invalid date range");
+        require(end > block.timestamp, "Date in past");
+        require(end - start <= 365 days * 5, "Validity too long"); // Max 5 years
     }
 }
