@@ -25,22 +25,26 @@ On average, farmers receive only 25–30% of the final consumer price, as middle
 
 ## 2. OUR SOLUTION – FARMAVERSE
 
-Farmaverse is a blockchain-powered farm-to-fork transparency ecosystem that restores trust in India's agricultural value chain. Every step — from soil preparation, plantation, crop care, harvesting, to distribution — is digitally verified and immutably recorded on-chain.
+Farmaverse is a blockchain-powered farm-to-fork transparency ecosystem that restores trust in India's agricultural value chain. Every step — from soil preparation, plantation, crop care, fertilizer and pesticide usage, harvesting, organic certification, to distribution — is digitally verified and immutably recorded on-chain.
 
 ### On-Chain Crop Data
-Each tree or group of trees is assigned a unique TreeID, creating a digital identity for crops. Every harvested fruit can be traced back to its origin with verified records of:
-- Fertilizers and pesticides used (organic or inorganic)
-- Irrigation and crop care practices
-- Ripening methods and storage duration
-- Harvest cut-off dates and quality checks
+Each tree is assigned a unique TreeID, creating a digital identity for crops. Every harvested fruit can be traced back to its origin with verified records of:
+
+! Just think for future: Can we also create groupTreeID for larger number of trees and add batch operations in smart contract (we already have but we need to add number of trees to it) 
+
+    • Fertilizers and pesticides used (organic or inorganic)
+    • Irrigation and crop care practices
+    • Ripening methods and storage duration
+    • Harvest cut-off dates and quality checks
+    • Many more other (Owner, Owner Reputation, Plantation Date, Location, Certification etc)
 
 ### Supply Chain Transparency
-Every fruit box is linked to its TreeID and tracked through logistics, storage, and retail. With QR codes, consumers can scan and instantly verify authenticity, farming methods, and certifications — creating a tamper-proof trust layer.
+Every fruit is linked to its TreeID and tracked through logistics, storage, and retail. With QR codes, consumers can scan and instantly verify authenticity, farming methods, and certifications — creating a tamper-proof trust layer.
 
 ### Farmer Empowerment
 Farmaverse doesn't just monitor — it rewards. Farmers who follow transparent practices build credibility scores, access premium markets, and earn fairer prices. A tokenized or INR-backed incentive layer ensures payments, microfunding opportunities, and reputation-building.
 
-**Our first pilot begins with a blockchain-verified organic mango orchard, serving as proof of trust-driven agriculture in India. Over time, Farmaverse will expand to bananas, pomegranates, grapes, and other premium crops — creating a reputation-first, incentive-driven farm economy that connects farmers and consumers through trust and technology.**
+**Our first pilot begins with a blockchain-verified organic mango orchard, serving as proof of trust-driven agriculture in India. Over time, Farmaverse will expand to bananas, pomegranates, grapes, dragonfruit and other premium crops — creating a reputation-first, incentive-driven farm economy that connects farmers and consumers through trust and technology.**
 
 ---
 
@@ -66,7 +70,7 @@ Farmers, distributors, and certifiers onboarded with verifiable digital IDs, add
 Web-based QR-code scanning lets consumers view the complete journey of their fruit through a responsive web application.
 
 ### How the Layers Work Together
-Every mango box carries a digital identity linked to its source trees. IoT and farmer inputs capture real-world events (e.g., soil moisture, pesticide sprays), which are stored immutably on Polygon. Certifications and images are stored on IPFS/Filecoin and referenced on-chain. When consumers scan a QR code, the web app fetches this data, providing end-to-end transparency.
+Every mango carries a digital identity linked to its source trees through treeID. IoT and farmer inputs capture real-world events (e.g., soil moisture, pesticide sprays), which are stored immutably on Polygon. Certifications and images are stored on IPFS/Filecoin and referenced on-chain. When consumers scan a QR code, the web app fetches this data, providing end-to-end transparency.
 
 ### Current Tech Stack Architecture
 ```
@@ -202,26 +206,51 @@ Consumer + Farmer Benefits (Trust, Income, Global Reach)
 
 ---
 
-## 5. KEY FEATURES (YEAR 1)
+5. KEY FEATURES (YEAR 1)
+Farmer Interface
+Dashboard: Overview of all mango trees and harvests
 
-### Farmer Interface
-- **Dashboard**: Overview of all mango trees and harvests
-- **Data Input**: Manual entry for farming practices, pesticides, harvest dates
-- **IoT Integration**: Optional sensor data upload
-- **QR Generation**: Create QR codes for mango boxes
-- **Certification**: Upload lab certificates and organic certifications
+Data Input: Manual entry for farming practices, pesticides, harvest dates
 
-### Consumer Interface
-- **QR Scanner**: Scan QR codes to view mango journey
-- **Traceability**: Complete farm-to-fork story
-- **Verification**: Authenticate organic claims and certifications
-- **Farmer Profile**: View farmer details and practices
+IoT Integration: Optional sensor data upload
 
-### Core Functionality
-- **TreeID System**: Unique blockchain identity for each tree/group
-- **Immutable Records**: All data stored on Polygon blockchain
-- **Certification Verification**: Lab results and organic certifications
-- **Reputation Building**: Farmer credibility scores
+QR Generation: Create QR codes for mango boxes
+
+Certification: Upload lab certificates and organic certifications
+
+Supports recognized authorities such as NPOP (India Organic), USDA Organic (USA), JAS (Japan), EU Organic, GLOBALG.A.P., and GFP
+
+Farmers undergo a 3-year conversion process under NPOP unless prior chemical-free history is documented
+
+Certification metadata (authority name, issue/expiry dates, verification status, revocation history) is stored immutably on-chain
+
+Consumer Interface
+QR Scanner: Scan QR codes to view mango journey
+
+Traceability: Complete farm-to-fork story
+
+Verification: Authenticate organic claims and certifications
+
+Consumers can view certification details issued by trusted authorities
+
+Each certification includes inspection history, certifier identity, and current status (active, expired, revoked)
+
+Farmer Profile: View farmer details and practices
+
+Core Functionality
+TreeID System: Unique blockchain identity for each tree/group
+
+Immutable Records: All data stored on Polygon blockchain
+
+Certification Verification: Lab results and organic certifications
+
+Smart contracts validate certification authenticity and status
+
+Revoked or expired certificates are flagged automatically
+
+Reputation Building: Farmer credibility scores
+
+Verified certifications and consistent practices improve scores and market access
 
 ---
 

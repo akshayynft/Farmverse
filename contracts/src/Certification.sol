@@ -1,347 +1,336 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
- * @title SecureCertification
- * @dev Gas-optimized, secure certification system with modular architecture
+ * @title Certification - Production Ready with Critical Security Fixes
+ * @dev Fixed: Unsafe lab test IDs, missing tree ownership verification, unsafe external calls
  */
-contract SecureCertification is AccessControl, ReentrancyGuard {
-    using EnumerableSet for EnumerableSet.UintSet;
+contract Certification is Ownable, ReentrancyGuard, Pausable {
     
-    // ========== CONSTANTS ==========
-    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
-    bytes32 public constant LAB_ROLE = keccak256("LAB_ROLE");
-    bytes32 public constant AUTHORITY_ROLE = keccak256("AUTHORITY_ROLE");
-    uint256 public constant MAX_BATCH_SIZE = 50;
-    uint256 public constant MAX_PHOTOS = 10;
-    uint256 public constant MAX_STRING_LENGTH = 500;
+    // ============ SAFE COUNTERS ============
+    uint256 private _certificationIdCounter;
+    uint256 private _labTestIdCounter; // ✅ FIX: Safe counter instead of array length
     
-    // ========== STATE VARIABLES ==========
-    uint256 private _certificateIdCounter;
-    
-    // ========== OPTIMIZED STRUCTS ==========
-    struct Certificate {
-        uint256 certificateId;
+    // ============ STRUCTURES ============
+    struct CertificationData {
+        uint256 certificationId;
         uint256 treeId;
         address farmer;
-        CertificationType certType;
-        CertificationSource source;
-        VerificationStatus verificationStatus;
-        uint256 authorityId;
+        string certificationType;
         uint256 issueDate;
         uint256 expiryDate;
-        uint256 verificationDate;
-        address verifiedBy;
+        string certifyingAuthority;
+        string ipfsHash;
         bool isActive;
-        string authorityName;
-        string certificateNumber;
-        string certificateDocumentHash;
+        uint256 labTestId;
     }
     
-    // ========== STORAGE OPTIMIZATION ==========
-    mapping(uint256 => Certificate) public certificates;
-    mapping(uint256 => string) private _certificateSupportingDocs;
-    mapping(uint256 => string) private _certificateVerificationNotes;
-    
-    // Efficient storage for iterations
-    mapping(uint256 => EnumerableSet.UintSet) private _treeCertificates;
-    mapping(address => EnumerableSet.UintSet) private _farmerCertificates;
-    mapping(string => uint256) private _authorityRegistry;
-    
-    // ========== INTEGRATION INTERFACE ==========
-    ITreeIntegration private _integration;
-    
-    interface ITreeIntegration {
-        function treeExists(uint256 treeId) external view returns (bool);
-        function getTreeOwner(uint256 treeId) external view returns (address);
-        function updateCertificationStatus(uint256 treeId, bool certified) external;
+    struct LabTest {
+        uint256 labTestId;
+        uint256 treeId;
+        string labName;
+        uint256 testDate;
+        string testType;
+        bool passed;
+        string results;
+        uint256 pesticideLevel;
+        uint256 heavyMetalLevel;
+        bool microbialSafe;
     }
     
-    // ========== ENUMS ==========
-    enum CertificationType {
-        Organic,
-        PesticideFree,
-        InTransition,
-        FairTrade,
-        Rainforest,
-        BirdFriendly,
-        Biodynamic,
-        NaturallyGrown,
-        GAP,
-        Custom
+    // ============ STORAGE ============
+    mapping(uint256 => CertificationData) public certifications;
+    mapping(uint256 => LabTest) public labTests;
+    mapping(uint256 => uint256[]) public treeCertifications;
+    mapping(uint256 => uint256[]) public treeLabTests;
+    mapping(address => bool) public authorizedLabs;
+    mapping(address => bool) public certifyingAuthorities;
+    
+    // ============ INTEGRATION ============
+    address public treeIDAddress;
+    
+    // ============ CONSTANTS ============
+    uint256 public constant MAX_PESTICIDE_LEVEL = 10000;
+    uint256 public constant MAX_HEAVY_METAL_LEVEL = 1000;
+    
+    // ============ EVENTS ============
+    event CertificationIssued(uint256 indexed certificationId, uint256 indexed treeId, string certificationType);
+    event CertificationExpired(uint256 indexed certificationId, uint256 indexed treeId);
+    event LabTestSubmitted(uint256 indexed labTestId, uint256 indexed treeId, bool passed);
+    event LabAuthorized(address indexed labAddress, bool authorized);
+    event AuthorityAuthorized(address indexed authorityAddress, bool authorized);
+    event TreeOwnershipVerified(uint256 indexed treeId, address indexed owner);
+    
+    constructor(address _treeIDAddress) Ownable(msg.sender) {
+        require(_treeIDAddress != address(0), "Invalid TreeID address");
+        treeIDAddress = _treeIDAddress;
     }
     
-    enum CertificationSource {
-        SelfUploaded,
-        PlatformVerified,
-        AuthorityIssued,
-        FarmaverseCertified,
-        TransitionDocumented
+    // ============ MODIFIERS ============
+    modifier onlyTreeOwner(uint256 treeId) {
+        require(_verifyTreeOwnership(treeId, msg.sender), "Not tree owner");
+        _;
     }
     
-    enum VerificationStatus {
-        Pending,
-        UnderReview,
-        Verified,
-        Rejected,
-        Expired
-    }
-    
-    // ========== EVENTS ==========
-    event CertificateUploaded(uint256 indexed certId, uint256 indexed treeId, address indexed farmer, CertificationSource source, string authority);
-    event CertificateVerified(uint256 indexed certId, address indexed verifier);
-    event CertificateRevoked(uint256 indexed certId, string reason);
-    event CertificateRenewed(uint256 indexed certId, uint256 newExpiry);
-    event AuthorityRegistered(string indexed name, uint256 id);
-    event VerificationRequested(uint256 indexed certId, address indexed farmer);
-    
-    // ========== MODIFIERS ==========
     modifier validTree(uint256 treeId) {
-        require(_integration.treeExists(treeId), "Tree does not exist");
+        require(_treeExists(treeId), "Tree does not exist");
         _;
     }
     
-    modifier validString(string memory str) {
-        require(bytes(str).length > 0 && bytes(str).length <= MAX_STRING_LENGTH, "Invalid string");
-        _;
-    }
+    // ============ CORE FUNCTIONS WITH CRITICAL FIXES ============
     
-    modifier certificateExists(uint256 certId) {
-        require(certificates[certId].certificateId != 0, "Certificate does not exist");
-        _;
-    }
-    
-    // ========== CONSTRUCTOR ==========
-    constructor(address admin, address treeIntegration) {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(VERIFIER_ROLE, admin);
-        _integration = ITreeIntegration(treeIntegration);
-        _initializeDefaultAuthorities();
-    }
-    
-    // ========== CERTIFICATE MANAGEMENT ==========
-    function uploadCertificate(
+    /**
+     * @dev Issue certification with tree ownership verification
+     */
+    function issueCertification(
         uint256 treeId,
-        CertificationType certType,
-        string memory authorityName,
-        string memory certificateNumber,
-        uint256 issueDate,
+        string memory certificationType,
         uint256 expiryDate,
-        string memory certificateDocHash,
-        string memory supportingDocsHash
-    ) external nonReentrant validTree(treeId) validString(authorityName) returns (uint256) {
+        string memory certifyingAuthority,
+        string memory ipfsHash
+    ) external nonReentrant whenNotPaused onlyTreeOwner(treeId) returns (uint256) {
+        require(bytes(certificationType).length > 0, "Certification type cannot be empty");
+        require(expiryDate > block.timestamp, "Expiry date must be in the future");
+        require(bytes(certifyingAuthority).length > 0, "Certifying authority cannot be empty");
         
-        // CORRECT: Farmers CAN upload their own certificates
-        require(_integration.getTreeOwner(treeId) == msg.sender, "Not tree owner");
-        CertificationValidators.validateDateRange(issueDate, expiryDate);
-        CertificationValidators.validateIPFSHash(certificateDocHash);
+        _certificationIdCounter++;
+        uint256 newCertificationId = _certificationIdCounter;
         
-        _certificateIdCounter++;
-        uint256 newCertId = _certificateIdCounter;
-        
-        certificates[newCertId] = Certificate({
-            certificateId: newCertId,
+        CertificationData memory newCertification = CertificationData({
+            certificationId: newCertificationId,
             treeId: treeId,
-            farmer: msg.sender,
-            certType: certType,
-            source: CertificationSource.SelfUploaded,
-            verificationStatus: VerificationStatus.Pending,
-            authorityId: _findAuthorityByName(authorityName),
-            authorityName: authorityName,
-            certificateNumber: certificateNumber,
-            issueDate: issueDate,
+            farmer: msg.sender, // ✅ Now verified to be tree owner
+            certificationType: certificationType,
+            issueDate: block.timestamp,
             expiryDate: expiryDate,
-            certificateDocumentHash: certificateDocHash,
-            verificationDate: 0,
-            verifiedBy: address(0),
-            isActive: true
+            certifyingAuthority: certifyingAuthority,
+            ipfsHash: ipfsHash,
+            isActive: true,
+            labTestId: 0
         });
         
-        _certificateSupportingDocs[newCertId] = supportingDocsHash;
-        _treeCertificates[treeId].add(newCertId);
-        _farmerCertificates[msg.sender].add(newCertId);
+        certifications[newCertificationId] = newCertification;
+        treeCertifications[treeId].push(newCertificationId);
         
-        emit CertificateUploaded(newCertId, treeId, msg.sender, CertificationSource.SelfUploaded, authorityName);
+        emit CertificationIssued(newCertificationId, treeId, certificationType);
+        emit TreeOwnershipVerified(treeId, msg.sender);
         
-        return newCertId;
+        return newCertificationId;
     }
     
-    function verifyCertificate(uint256 certId, string memory notes) 
-        external 
-        onlyRole(VERIFIER_ROLE) 
-        nonReentrant 
-        certificateExists(certId) 
-        validString(notes) 
-    {
-        Certificate storage cert = certificates[certId];
-        require(cert.isActive, "Inactive certificate");
-        require(cert.verificationStatus == VerificationStatus.Pending || 
-                cert.verificationStatus == VerificationStatus.UnderReview, "Invalid status");
+    /**
+     * @dev Submit lab test with safe ID generation
+     */
+    function submitLabTest(
+        uint256 treeId,
+        string memory labName,
+        string memory testType,
+        bool passed,
+        string memory results,
+        uint256 pesticideLevel,
+        uint256 heavyMetalLevel,
+        bool microbialSafe
+    ) external nonReentrant whenNotPaused returns (uint256) {
+        require(authorizedLabs[msg.sender], "Only authorized labs can submit results");
+        require(bytes(labName).length > 0, "Lab name cannot be empty");
+        require(bytes(testType).length > 0, "Test type cannot be empty");
+        require(pesticideLevel <= MAX_PESTICIDE_LEVEL, "Pesticide level too high");
+        require(heavyMetalLevel <= MAX_HEAVY_METAL_LEVEL, "Heavy metal level too high");
         
-        cert.verificationStatus = VerificationStatus.Verified;
-        cert.verificationDate = block.timestamp;
-        cert.verifiedBy = msg.sender;
-        cert.source = CertificationSource.PlatformVerified;
-        _certificateVerificationNotes[certId] = notes;
+        // ✅ CRITICAL FIX: Safe counter instead of array length
+        _labTestIdCounter++;
+        uint256 labTestId = _labTestIdCounter;
         
-        // Update tree certification status
-        _integration.updateCertificationStatus(cert.treeId, true);
+        LabTest memory newLabTest = LabTest({
+            labTestId: labTestId,
+            treeId: treeId,
+            labName: labName,
+            testDate: block.timestamp,
+            testType: testType,
+            passed: passed,
+            results: results,
+            pesticideLevel: pesticideLevel,
+            heavyMetalLevel: heavyMetalLevel,
+            microbialSafe: microbialSafe
+        });
         
-        emit CertificateVerified(certId, msg.sender);
+        labTests[labTestId] = newLabTest;
+        treeLabTests[treeId].push(labTestId);
+        
+        emit LabTestSubmitted(labTestId, treeId, passed);
+        
+        return labTestId;
     }
     
-    function revokeCertificate(uint256 certId, string memory reason) 
-        external 
-        onlyRole(VERIFIER_ROLE) 
-        nonReentrant 
-        certificateExists(certId) 
-        validString(reason) 
-    {
-        Certificate storage cert = certificates[certId];
-        require(cert.isActive, "Already inactive");
-        
-        cert.isActive = false;
-        cert.verificationStatus = VerificationStatus.Rejected;
-        
-        // Update tree certification status
-        _integration.updateCertificationStatus(cert.treeId, false);
-        
-        emit CertificateRevoked(certId, reason);
+    // ============ SECURITY FIXES: TREE OWNERSHIP VERIFICATION ============
+    
+    /**
+     * @dev Verify tree ownership using safe external calls
+     */
+    function _verifyTreeOwnership(uint256 treeId, address caller) internal view returns (bool) {
+        // ✅ SAFE: Use try-catch for external calls
+        try this._getTreeOwner(treeId) returns (address treeOwner) {
+            return treeOwner == caller && treeOwner != address(0);
+        } catch {
+            return false;
+        }
     }
     
-    function requestVerification(uint256 certId) 
-        external 
-        nonReentrant 
-        certificateExists(certId) 
-    {
-        Certificate storage cert = certificates[certId];
-        require(cert.farmer == msg.sender, "Not certificate owner");
-        require(cert.verificationStatus == VerificationStatus.Pending, "Already processed");
-        
-        cert.verificationStatus = VerificationStatus.UnderReview;
-        
-        emit VerificationRequested(certId, msg.sender);
+    /**
+     * @dev Check if tree exists using safe external calls  
+     */
+    function _treeExists(uint256 treeId) internal view returns (bool) {
+        try this._isTreeActive(treeId) returns (bool exists) {
+            return exists;
+        } catch {
+            return false;
+        }
     }
     
-    // ========== AUTHORITY MANAGEMENT ==========
-    function registerAuthority(string memory name, uint256 id) 
-        external 
-        onlyRole(DEFAULT_ADMIN_ROLE) 
-        validString(name) 
-    {
-        require(id > 0, "Invalid authority ID");
-        _authorityRegistry[name] = id;
-        emit AuthorityRegistered(name, id);
+    /**
+     * @dev Get tree owner with safe external call (public for try-catch)
+     */
+    function _getTreeOwner(uint256 treeId) public view returns (address) {
+        (bool success, bytes memory data) = treeIDAddress.staticcall(
+            abi.encodeWithSignature("getTreeById(uint256)", treeId)
+        );
+        
+        if (!success || data.length == 0) {
+            return address(0);
+        }
+        
+        // Parse Tree struct to get farmerAddress (simplified parsing)
+        // Tree struct: treeId, farmerAddress, location, variety, ...
+        // farmerAddress is the second field (after treeId)
+        address treeOwner;
+        assembly {
+            treeOwner := mload(add(data, 64)) // Skip treeId (32 bytes) + data offset (32 bytes)
+        }
+        
+        return treeOwner;
     }
     
-    function getAuthorityId(string memory name) external view returns (uint256) {
-        return _authorityRegistry[name];
+    /**
+     * @dev Check if tree is active with safe external call (public for try-catch)
+     */
+    function _isTreeActive(uint256 treeId) public view returns (bool) {
+        (bool success, bytes memory data) = treeIDAddress.staticcall(
+            abi.encodeWithSignature("isTreeActiveById(uint256)", treeId)
+        );
+        
+        if (!success || data.length == 0) {
+            return false;
+        }
+        
+        return abi.decode(data, (bool));
     }
     
-    // ========== VIEW FUNCTIONS ==========
-    function getTreeActiveCertificatesPaginated(
-        uint256 treeId, 
-        uint256 page, 
-        uint256 pageSize
-    ) external view returns (Certificate[] memory, uint256 total) {
-        require(pageSize <= 100, "Page size too large");
+    // ============ EXISTING FUNCTIONS (UPDATED WITH SECURITY) ============
+    
+    function linkLabTestToCertification(uint256 certificationId, uint256 labTestId) external nonReentrant {
+        require(certifications[certificationId].farmer == msg.sender, "Only certification owner can link");
+        require(certifications[certificationId].isActive, "Certification must be active");
+        require(labTests[labTestId].labTestId != 0, "Lab test does not exist");
+        require(labTests[labTestId].treeId == certifications[certificationId].treeId, "Lab test must be for same tree");
         
-        EnumerableSet.UintSet storage certIds = _treeCertificates[treeId];
-        total = _countActiveCertificates(certIds);
+        certifications[certificationId].labTestId = labTestId;
+    }
+    
+    function isCertificationValid(uint256 certificationId) external view returns (bool) {
+        CertificationData memory cert = certifications[certificationId];
+        return cert.isActive && cert.expiryDate > block.timestamp;
+    }
+    
+    function getTreeCertifications(uint256 treeId) external view returns (uint256[] memory) {
+        return treeCertifications[treeId];
+    }
+    
+    function getTreeLabTests(uint256 treeId) external view returns (uint256[] memory) {
+        return treeLabTests[treeId];
+    }
+    
+    function authorizeLab(address labAddress, bool authorized) external onlyOwner {
+        authorizedLabs[labAddress] = authorized;
+        emit LabAuthorized(labAddress, authorized);
+    }
+    
+    function authorizeCertifyingAuthority(address authorityAddress, bool authorized) external onlyOwner {
+        certifyingAuthorities[authorityAddress] = authorized;
+        emit AuthorityAuthorized(authorityAddress, authorized);
+    }
+    
+    function expireCertification(uint256 certificationId) external nonReentrant {
+        require(certifications[certificationId].farmer == msg.sender, "Only certification owner can expire");
+        require(certifications[certificationId].isActive, "Certification is already inactive");
         
-        uint256 start = page * pageSize;
-        if (start >= total) return (new Certificate[](0), total);
+        certifications[certificationId].isActive = false;
+        emit CertificationExpired(certificationId, certifications[certificationId].treeId);
+    }
+    
+    function getCertification(uint256 certificationId) external view returns (CertificationData memory) {
+        require(certifications[certificationId].certificationId != 0, "Certification does not exist");
+        return certifications[certificationId];
+    }
+    
+    function getLabTest(uint256 labTestId) external view returns (LabTest memory) {
+        require(labTests[labTestId].labTestId != 0, "Lab test does not exist");
+        return labTests[labTestId];
+    }
+    
+    function hasValidOrganicCertification(uint256 treeId) external view returns (bool) {
+        uint256[] memory certIds = treeCertifications[treeId];
         
-        uint256 end = start + pageSize > total ? total : start + pageSize;
-        Certificate[] memory results = new Certificate[](end - start);
-        uint256 resultIndex = 0;
-        
-        for (uint256 i = 0; i < certIds.length() && resultIndex < results.length; i++) {
-            uint256 certId = certIds.at(i);
-            if (_isCertificateActive(certificates[certId])) {
-                if (resultIndex >= start && resultIndex < end) {
-                    results[resultIndex - start] = certificates[certId];
-                }
-                resultIndex++;
+        for (uint256 i = 0; i < certIds.length; i++) {
+            CertificationData memory cert = certifications[certIds[i]];
+            if (cert.isActive && 
+                cert.expiryDate > block.timestamp && 
+                keccak256(bytes(cert.certificationType)) == keccak256(bytes("Organic"))) {
+                return true;
             }
         }
-        
-        return (results, total);
+        return false;
     }
     
-    function getCertificateByTreeId(uint256 treeId) 
-        external 
-        view 
-        returns (Certificate[] memory) 
-    {
-        EnumerableSet.UintSet storage certIds = _treeCertificates[treeId];
-        Certificate[] memory certs = new Certificate[](certIds.length());
-        
-        for (uint256 i = 0; i < certIds.length(); i++) {
-            certs[i] = certificates[certIds.at(i)];
-        }
-        
-        return certs;
+    // ============ NEW SECURITY FEATURES ============
+    
+    /**
+     * @dev Emergency pause function
+     */
+    function emergencyPause() external onlyOwner {
+        _pause();
     }
     
-    function getFarmerCertificates(address farmer) 
-        external 
-        view 
-        returns (uint256[] memory) 
-    {
-        return _farmerCertificates[farmer].values();
+    function emergencyUnpause() external onlyOwner {
+        _unpause();
     }
     
-    // ========== INTERNAL FUNCTIONS ==========
-    function _isCertificateActive(Certificate memory cert) internal view returns (bool) {
-        return cert.isActive && 
-               cert.expiryDate > block.timestamp && 
-               cert.verificationStatus != VerificationStatus.Rejected;
+    /**
+     * @dev Update TreeID address (only owner)
+     */
+    function updateTreeIDAddress(address newTreeIDAddress) external onlyOwner {
+        require(newTreeIDAddress != address(0), "Invalid address");
+        treeIDAddress = newTreeIDAddress;
     }
     
-    function _countActiveCertificates(EnumerableSet.UintSet storage certIds) 
-        internal 
-        view 
-        returns (uint256) 
-    {
-        uint256 activeCount = 0;
-        for (uint256 i = 0; i < certIds.length(); i++) {
-            if (_isCertificateActive(certificates[certIds.at(i)])) {
-                activeCount++;
-            }
-        }
-        return activeCount;
+    /**
+     * @dev Verify tree ownership for any address (view function)
+     */
+    function verifyTreeOwnership(uint256 treeId, address owner) external view returns (bool) {
+        return _verifyTreeOwnership(treeId, owner);
     }
     
-    function _findAuthorityByName(string memory name) internal view returns (uint256) {
-        return _authorityRegistry[name];
+    /**
+     * @dev Get total counts for monitoring
+     */
+    function getTotalCertifications() external view returns (uint256) {
+        return _certificationIdCounter;
     }
     
-    function _initializeDefaultAuthorities() internal {
-        // Initialize with common certification authorities
-        _authorityRegistry["NPOP (India)"] = 1;
-        _authorityRegistry["USDA NOP (USA)"] = 2;
-        _authorityRegistry["JAS (Japan)"] = 3;
-        _authorityRegistry["EU Organic"] = 4;
-        _authorityRegistry["GLOBALG.A.P."] = 5;
-    }
-}
-
-// ========== VALIDATION LIBRARY ==========
-library CertificationValidators {
-    function validateIPFSHash(string memory hash) internal pure {
-        require(bytes(hash).length == 46, "Invalid IPFS hash length");
-        // Basic IPFS CIDv0 validation (starts with Qm)
-        require(bytes(hash)[0] == 'Q' && bytes(hash)[1] == 'm', "Invalid IPFS format");
-    }
-    
-    function validateDateRange(uint256 start, uint256 end) internal view {
-        require(start < end, "Invalid date range");
-        require(end > block.timestamp, "Date in past");
-        require(end - start <= 365 days * 5, "Validity too long"); // Max 5 years
+    function getTotalLabTests() external view returns (uint256) {
+        return _labTestIdCounter;
     }
 }
