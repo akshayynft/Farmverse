@@ -285,6 +285,224 @@ contract FarmaverseCore is Ownable, ReentrancyGuard {
             certIpfsHash
         );
         
+            // ========== NEW CERTIFICATION FUNCTIONS (3 SCENARIOS) ==========
+
+    /**
+    * @notice SCENARIO 1: Upload existing certificate (NPOP, USDA, EU, etc.)
+    */
+    function uploadFarmerCertificate(
+        uint256 treeId,
+        Certification.CertificationType certType,
+        string memory authorityName,
+        string memory certificateNumber,
+        uint256 issueDate,
+        uint256 expiryDate,
+        string memory certificateDocHash,
+        string memory supportingDocsHash
+    ) external nonReentrant returns (uint256) {
+        uint256 certId = certificationContract.uploadCertificate(
+            treeId,
+            certType,
+            authorityName,
+            certificateNumber,
+            issueDate,
+            expiryDate,
+            certificateDocHash,
+            supportingDocsHash
+        );
+        
+        // Update farmer reputation
+        farmerReputationContract.recordReputationEvent(
+            msg.sender,
+            "Certificate_Uploaded",
+            50,
+            "Uploaded certification for verification",
+            treeId,
+            0,
+            certId,
+            certificateDocHash
+        );
+        
+        return certId;
+    }
+
+    /**
+    * @notice Request verification for uploaded certificate
+    */
+    function requestCertificateVerification(uint256 certId) external nonReentrant {
+        certificationContract.requestVerification(certId);
+    }
+
+    /**
+    * @notice SCENARIO 2: Start organic farming transition (3-year journey)
+    */
+    function startOrganicTransition(
+        uint256 treeId,
+        uint256 chemicalFreeStartDate,
+        string memory transitionPlanHash
+    ) external nonReentrant returns (uint256) {
+        require(treeIDContract.getTreeById(treeId).farmerAddress == msg.sender, "Not tree owner");
+        
+        uint256 transitionId = certificationContract.startTransition(
+            treeId,
+            chemicalFreeStartDate,
+            transitionPlanHash
+        );
+        
+        farmerReputationContract.recordReputationEvent(
+            msg.sender,
+            "Transition_Started",
+            30,
+            "Started organic transition journey",
+            treeId,
+            0,
+            0,
+            transitionPlanHash
+        );
+        
+        return transitionId;
+    }
+
+    /**
+    * @notice Update transition progress
+    */
+    function updateOrganicTransitionProgress(
+        uint256 transitionId,
+        uint256 trustScoreAdjustment,
+        bool isIncrease
+    ) external nonReentrant {
+        certificationContract.updateTransitionProgress(
+            transitionId,
+            trustScoreAdjustment,
+            isIncrease
+        );
+    }
+
+    /**
+    * @notice SCENARIO 3: Log farming practice with photo evidence
+    */
+    function logFarmingPractice(
+        uint256 treeId,
+        Certification.PracticeType practiceType,
+        string memory description,
+        string memory photoHash
+    ) external nonReentrant returns (uint256) {
+        require(treeIDContract.getTreeById(treeId).farmerAddress == msg.sender, "Not tree owner");
+        
+        uint256 logId = certificationContract.logPractice(
+            treeId,
+            practiceType,
+            description,
+            photoHash
+        );
+        
+        farmerReputationContract.recordReputationEvent(
+            msg.sender,
+            "Practice_Documented",
+            5,
+            string(abi.encodePacked("Documented farming practice: ", description)),
+            treeId,
+            0,
+            0,
+            photoHash
+        );
+        
+        return logId;
+    }
+
+    // ========== NEW VIEW FUNCTIONS ==========
+
+    /**
+    * @notice Get complete certification overview for a tree
+    */
+    function getTreeCertificationOverview(uint256 treeId) 
+        external 
+        view 
+        returns (
+            Certification.Certificate[] memory certificates,
+            Certification.TransitionRecord[] memory transitions,
+            Certification.PracticeLog[] memory practices,
+            uint256 trustScore
+        ) 
+    {
+        certificates = certificationContract.getCertificatesByTreeId(treeId);
+        transitions = certificationContract.getTransitionRecordsByTreeId(treeId);
+        practices = certificationContract.getPracticeLogsByTreeId(treeId);
+        trustScore = certificationContract.calculateFarmerTrustScore(treeId);
+        
+        return (certificates, transitions, practices, trustScore);
+    }
+
+    /**
+    * @notice Get transition status for a tree
+    */
+    function getTreeTransitionStatus(uint256 treeId) 
+        external 
+        view 
+        returns (Certification.TransitionRecord[] memory) 
+    {
+        return certificationContract.getTransitionRecordsByTreeId(treeId);
+    }
+
+    /**
+    * @notice Get practice logs for a tree
+    */
+    function getTreePracticeLogs(uint256 treeId) 
+        external 
+        view 
+        returns (Certification.PracticeLog[] memory) 
+    {
+        return certificationContract.getPracticeLogsByTreeId(treeId);
+    }
+
+    /**
+    * @notice Calculate farmer's trust score
+    */
+    function getFarmerTrustScore(uint256 treeId) 
+        external 
+        view 
+        returns (uint256) 
+    {
+        return certificationContract.calculateFarmerTrustScore(treeId);
+    }
+
+    /**
+    * @notice Get farmer's complete certification portfolio
+    */
+    function getFarmerCertificationPortfolio(address farmer) 
+        external 
+        view 
+        returns (
+            uint256[] memory certificateIds,
+            uint256 totalCertificates,
+            uint256 activeCertificates,
+            uint256 averageTrustScore
+        ) 
+    {
+        certificateIds = certificationContract.getFarmerCertificates(farmer);
+        totalCertificates = certificateIds.length;
+        
+        // Calculate active certificates
+        for (uint256 i = 0; i < certificateIds.length; i++) {
+            Certification.Certificate memory cert = certificationContract.getCertificate(certificateIds[i]);
+            if (cert.isActive && cert.expiryDate > block.timestamp) {
+                activeCertificates++;
+            }
+        }
+        
+        // Calculate average trust score
+        uint256[] memory farmerTrees = treeIDContract.getFarmerTrees(farmer);
+        uint256 totalTrustScore = 0;
+        
+        for (uint256 i = 0; i < farmerTrees.length; i++) {
+            totalTrustScore += certificationContract.calculateFarmerTrustScore(farmerTrees[i]);
+        }
+        
+        averageTrustScore = farmerTrees.length > 0 ? totalTrustScore / farmerTrees.length : 0;
+        
+        return (certificateIds, totalCertificates, activeCertificates, averageTrustScore);
+    }
+        
         // Submit lab test
         labTestId = certificationContract.submitLabTest(
             treeId,
